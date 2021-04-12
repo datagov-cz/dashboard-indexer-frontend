@@ -2,16 +2,10 @@ import React from 'react';
 import './Home.css';
 import * as Bootstrap from 'react-bootstrap';
 import axios from 'axios';
-import {BrowserRouter as Router, Route, Link} from 'react-router-dom';
+import {Link} from 'react-router-dom';
 
 
 class IndexRow extends React.Component {
-    constructor(props) {
-        super(props);
-        // console.log(this.props.data.lastTenUpdateRecords);
-
-    }
-
     render() {
         return (
             <tr>
@@ -44,12 +38,10 @@ class IndexTable extends React.Component {
             configs: Array(1),
             running: {}
         }
-        {/*TODO: change to SWR  https://swr.vercel.app/getting-started*/
-        }
-        axios.get('http://192.168.0.101:8080/configs').then((response) => this.setState({configs: response.data}))
-        setInterval(() => axios.get('http://192.168.0.101:8080/configs').then((response) => this.setState({configs: response.data})), 10 * 1000);
-        axios.get('http://192.168.0.101:8080/running').then((response) => this.setState({running: response.data}));
-        setInterval(() => axios.get('http://192.168.0.101:8080/running').then((response) => this.setState({running: response.data})), 1000);
+        axios.get('http://localhost:8080/configs').then((response) => this.setState({configs: response.data}))
+        setInterval(() => axios.get('http://localhost:8080/configs').then((response) => this.setState({configs: response.data})), 10 * 1000);
+        axios.get('http://localhost:8080/running').then((response) => this.setState({running: response.data}));
+        setInterval(() => axios.get('http://localhost:8080/running').then((response) => this.setState({running: response.data})), 1000);
     }
 
     renderRow(index) {
