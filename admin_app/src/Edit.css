@@ -1,0 +1,10 @@
+.plus {
+    float: none;
+    position: relative;
+    border-width: 2px !important;
+}
+.plus-text{
+    font-size: 1.2em;
+    margin-top: -0.25em;
+}
+

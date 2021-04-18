@@ -1,7 +1,22 @@
 import React from "react";
 import * as Bootstrap from "react-bootstrap";
+import "./Edit.css";
 import {Link, withRouter} from "react-router-dom";
 import axios from "axios";
+
+class AddRowButton extends React.Component {
+    render() {
+        return (
+            <div className={"d-flex align-items-center" + (this.props.length > 0 ? "" : " mt-2")}>
+                {this.props.length > 0 ? <div className="w-100 m-0 ml-2 mr-2 border border-success"/> : ""}
+                <button type="button" className=" close border border-success rounded-circle plus"
+                        aria-label="Close" onClick={this.props.onClick}>
+                    <div className="text-success plus-text" aria-hidden="true">&#43;</div>
+                </button>
+                <div className="w-100 m-0 ml-2 mr-2 border border-success"/>
+            </div>)
+    }
+}
 
 class Edit extends React.Component {
     render() {
@@ -10,13 +25,13 @@ class Edit extends React.Component {
                 <Bootstrap.Row>
                     <Bootstrap.Col>
                         <h1>
-                            {"Edit"}
+                            {this.props.match.params.name ? "Editing: " + this.props.match.params.name : "New index"}
                         </h1>
                     </Bootstrap.Col>
                 </Bootstrap.Row>
                 <Bootstrap.Row>
                     <Bootstrap.Col>
-                        <Tabs name={this.props.match.params.name}/>
+                        <Tabs match={this.props.match} name={this.props.match.params.name}/>
                     </Bootstrap.Col>
                 </Bootstrap.Row>
             </Bootstrap.Container>
@@ -53,10 +68,11 @@ class Tabs extends React.Component {
             readOnly: true,
             configRaw: ""
         };
-        if (this.props.name) axios.get('http://192.168.0.101:8080/config/' + this.props.name).then((response) => {
+        if (this.props.name) axios.get('http://localhost:8080/api/config/' + this.props.name).then((response) => {
             this.setState({config: response.data}, () =>
-                this.setState({configRaw: JSON.stringify(this.state.config, null, 7)}, () =>
-                    this.setStateFromConfig()
+                this.setState({configRaw: JSON.stringify(this.state.config, null, 7)}, () => {
+                        this.setStateFromConfig();
+                    }
                 )
             );
         })
@@ -65,11 +81,11 @@ class Tabs extends React.Component {
 
     sendConfig = () => {
         let config = this.convertVarsToConfig();
-        console.log(this.state.config)
-        axios.put('http://localhost:8080/config', config);
+        axios.put('http://localhost:8080/api/config', config);
     }
     sendConfigAndIndex = () => {
-        axios.put('http://localhost:8080/configAndIndex', this.state.config);
+        let config = this.convertVarsToConfig();
+        axios.put('http://localhost:8080/api/configAndIndex', config);
     }
 
     createSaveButtons() {
@@ -110,8 +126,8 @@ class Tabs extends React.Component {
         if (this.state.language !== "en") Object.assign(eeaRDF, {
             language: this.state.language
         })
-        if (this.state.uriDescription !== undefined && this.state.uriDescription.length > 0) Object.assign(eeaRDF, {
-            uriDescription: this.state.uriDescription//TODO: test
+        if (this.state.URIDescription !== undefined && this.state.URIDescription.length > 0) Object.assign(eeaRDF, {
+            uriDescription: this.state.URIDescription//TODO: test
         })
         if (this.state.filtrationListType !== "none" && this.state.filtrationList !== undefined && this.state.filtrationList.length > 0) Object.assign(eeaRDF, {
             proplist: this.state.filtrationList,
@@ -120,9 +136,7 @@ class Tabs extends React.Component {
         if (this.state.mappingFiltrationType !== "none" && this.state.mappingFiltration !== undefined && this.state.mappingFiltration.length > 0) {
             let map = new Map();
             this.state.mappingFiltration.forEach(pair => map[pair[0]] = pair[1]);
-            Object.assign(eeaRDF, JSON.parse(
-                this.state.mappingFiltrationType + " : {" + JSON.stringify(map) + "}"
-            ));
+            Object.assign(eeaRDF, {[this.state.mappingFiltrationType]: map});
         }
         if (this.state.propertiesNormalization !== undefined && this.state.propertiesNormalization.length > 0) {
             let map = new Map();
@@ -154,36 +168,90 @@ class Tabs extends React.Component {
                     type: "rdf"
                 }
             }
-
         }
+
         this.setState({
             config: config
         })
         this.setState({configRaw: JSON.stringify(config, null, 7)});
         return config;
+    }
 
+    resetStates(performAfter) {
+        this.setState({
+            automatic: true,
+            documents: false,
+            documentAddresses: [],//array
+            sparql: true,
+            sparqlEndpoint: "",
+            queryType: "select",
+            queries: [],//array
+            advanced: false,
+            includeResourceURI: true,
+            addLanguage: true,
+            language: "en",
+            URIDescription: [],//array of pairs [string,string]
+            filtrationListType: "none",
+            filtrationList: [],//array
+            mappingFiltrationType: "none",
+            mappingFiltration: [],//array of pairs [string,array of strings]
+            propertiesNormalization: [],//array of pairs [string,array of strings]
+            objectNormalization: [],//array of pairs [string,string]
+            missingPropertyNormalization: []//array of pairs [string,array of strings]
+        }, performAfter);
     }
 
     setStateFromConfig() {
-        if (this.state.config === {} || this.state.config === undefined) return;
-        if (this.state.config.schedule !== undefined) {
-            this.setState({schedule: this.state.config.schedule.schedule.split(" ")});
-            this.setState({automatic: this.state.config.schedule.automatic});
-        }
-        if (this.state.config.config !== undefined) {
-            if (this.state.config.config.eeaRDF !== undefined) {
-                this.setState({sparqlEndpoint: this.state.config.config.eeaRDF.endpoint});
-                this.setState({queries: this.state.config.config.eeaRDF.query});
-                this.setState({queryType: this.state.config.config.eeaRDF.queryType});
+        this.resetStates(() => {
+            if (this.state.config === {} || this.state.config === undefined) return;
+            if (this.state.config.schedule) {
+                if (this.state.config.schedule.schedule) this.setState({schedule: this.state.config.schedule.schedule.split(" ")});
+                if (this.state.config.schedule.automatic !== undefined) this.setState({automatic: this.state.config.schedule.automatic});
             }
-            if (this.state.config.config.index !== undefined) {
-                this.setState({name: this.state.config.config.index.index});
+            if (this.state.config.config) {
+                if (this.state.config.config.eeaRDF) {
+                    let eeaRDF = this.state.config.config.eeaRDF;
+                    if (eeaRDF.includeResourceURI !== undefined || eeaRDF.addLanguage !== undefined || eeaRDF.language || eeaRDF.uriDescription || eeaRDF.proplist || eeaRDF.listtype || eeaRDF.whiteMap || eeaRDF.blackMap || eeaRDF.normProp || eeaRDF.normObj || eeaRDF.normMissing)
+                        this.setState({advanced: true});
+                    if (eeaRDF.uris) {
+                        this.setState({documentAddresses: eeaRDF.uris});
+                        this.setState({documents: true});
+                    }
+                    if (eeaRDF.endpoint) this.setState({sparqlEndpoint: eeaRDF.endpoint});
+                    if (eeaRDF.query) {
+                        this.setState({queries: eeaRDF.query});
+                        this.setState({sparql: true});
+                    } else this.setState({sparql: false});
+                    if (eeaRDF.queryType) this.setState({queryType: eeaRDF.queryType});
+                    if (eeaRDF.includeResourceURI !== undefined) this.setState({includeResourceURI: eeaRDF.includeResourceURI});
+                    if (eeaRDF.addLanguage !== undefined) this.setState({addLanguage: eeaRDF.addLanguage});
+                    if (eeaRDF.language) this.setState({language: eeaRDF.language});
+                    if (eeaRDF.uriDescription) this.setState({URIDescription: eeaRDF.uriDescription});
+                    if (eeaRDF.proplist) this.setState({filtrationList: eeaRDF.proplist});
+                    if (eeaRDF.listtype) this.setState({filtrationListType: eeaRDF.listtype});
+                    if (eeaRDF.whiteMap) {
+                        this.setState({mappingFiltrationType: "whiteMap"})
+                        this.setState({mappingFiltration: Object.entries(eeaRDF.whiteMap)})
+                    } else if (eeaRDF.blackMap) {
+                        this.setState({mappingFiltrationType: "blackMap"})
+                        this.setState({mappingFiltration: Object.entries(eeaRDF.blackMap)})
+                    }
+                    if (eeaRDF.normProp) this.setState({propertiesNormalization: Object.entries(eeaRDF.normProp)});
+                    if (eeaRDF.normObj) this.setState({objectNormalization: Object.entries(eeaRDF.normObj)});
+                    if (eeaRDF.normMissing) this.setState({missingPropertyNormalization: Object.entries(eeaRDF.normMissing)});
+
+                }
+                if (this.state.config.config.index) {
+                    if (this.state.config.config.index.index) this.setState({name: this.state.config.config.index.index});
+                }
             }
-        }
+        });
     }
 
-    saveConfigRawToVars() {
-        let config = JSON.parse(this.state.configRaw)
+    convertConfigRawToVars() {
+        if (this.state.readOnly) return;
+        let config = JSON.parse(this.state.configRaw);
+        this.setState({readOnly: true});
         this.setState({config: config}, () =>
             this.setStateFromConfig()
         )
@@ -191,9 +259,10 @@ class Tabs extends React.Component {
 
     render() {
         return (<>
+                {/*TODO: to navbar*/}
                 {this.createSaveButtons()}
                 <Bootstrap.Tabs defaultActiveKey="interactive" onSelect={(e) => {
-                    if (e === "raw") this.convertVarsToConfig(); else this.saveConfigRawToVars();
+                    if (e === "raw") this.convertVarsToConfig(); else this.convertConfigRawToVars();
                 }}>
                     <Bootstrap.Tab eventKey="interactive" title="Interactive">
                         <Bootstrap.Card className={"border-top-0"}>
@@ -218,7 +287,10 @@ class Tabs extends React.Component {
         return (
             <Bootstrap.Form>
                 <Bootstrap.Form.Check type="checkbox" label="Read only" checked={this.state.readOnly}
-                                      onChange={(event) => this.setState({readOnly: event.target.checked})}/>
+                                      onChange={(event) => {
+                                          if (event.target.checked) this.convertConfigRawToVars();
+                                          else this.setState({readOnly: false});
+                                      }}/>
                 <Bootstrap.Form.Control rows={25} as={"textarea"} readOnly={this.state.readOnly}
                                         value={this.state.configRaw}
                                         onChange={(e) => this.setState({configRaw: e.target.value})}
@@ -239,6 +311,7 @@ class Tabs extends React.Component {
                             </Bootstrap.Form.Label>
                             <Bootstrap.Col sm={10}>
                                 <Bootstrap.Form.Control placeholder="index-name" value={this.state.name}
+                                                        readOnly={this.props.match.params.name}
                                                         onChange={(e) => this.setState({name: e.target.value})}/>
                             </Bootstrap.Col>
                         </Bootstrap.Form.Group>
@@ -365,146 +438,161 @@ class Tabs extends React.Component {
                             />
                         </Bootstrap.Col>
                     </Bootstrap.Form.Group>
-                    <Bootstrap.Form.Group as={Bootstrap.Row}>
-                        <Bootstrap.Form.Label column sm={2}>
-                            URI description:
-                        </Bootstrap.Form.Label>
-                        <Bootstrap.Col sm={10}>
-                            {this.state.URIDescription.map((pair, index) => {
-                                return (<Bootstrap.Row>
-                                        <Bootstrap.Col sm={6}>
-                                            <Bootstrap.Form.Control className={"mb-2"}
-                                                                    placeholder={"http://www.w3.org/2000/01/rdf-schema#label"}
-                                                                    value={pair[0]}
-                                                                    onChange={(e) => {
-                                                                        this.setState(prev => {
-                                                                            prev.URIDescription[index][0] = e.target.value;
-                                                                            return {URIDescription: prev.URIDescription};
-                                                                        })
-                                                                    }}/>
-                                        </Bootstrap.Col>
-                                        <Bootstrap.Col sm={6}>
-                                            <Bootstrap.Form.Control className={"mb-2"}
-                                                                    placeholder={"http://purl.org/dc/terms/title"}
-                                                                    value={pair[1]}
-                                                                    onChange={(e) => {
-                                                                        this.setState(prev => {
-                                                                            prev.URIDescription[index][1] = e.target.value;
-                                                                            return {URIDescription: prev.URIDescription};
-                                                                        })
-                                                                    }}/>
-                                        </Bootstrap.Col>
-                                    </Bootstrap.Row>
-                                )
-                            })}
-                            <Bootstrap.Button
-                                onClick={() => this.setState(prev => ({URIDescription: prev.URIDescription.concat([["", ""]])}))}
-                            >Add pair</Bootstrap.Button>
-                        </Bootstrap.Col>
-                    </Bootstrap.Form.Group>
-                    <fieldset>
-                        <Bootstrap.Form.Group as={Bootstrap.Row}>
-                            <Bootstrap.Form.Label as="legend" column sm={2}>
-                                Filtration list:
-                            </Bootstrap.Form.Label>
-                            <Bootstrap.Col className={"align-items-center d-flex"} sm={10}>
-                                <Bootstrap.Form.Check
-                                    inline
-                                    type="radio"
-                                    label="None"
-                                    name="filtrationListType"
-                                    checked={this.state.filtrationListType === "none"}
-                                    onChange={(e) => {
-                                        if (e.target.checked) this.setState({filtrationListType: "none"})
-                                    }}
-                                />
-                                <Bootstrap.Form.Check
-                                    inline
-                                    type="radio"
-                                    label="Whitelist"
-                                    name="filtrationListType"
-                                    checked={this.state.filtrationListType === "white"}
-                                    onChange={(e) => {
-                                        if (e.target.checked) this.setState({filtrationListType: "white"})
-                                    }}
-                                />
-                                <Bootstrap.Form.Check
-                                    inline
-                                    type="radio"
-                                    label="Blacklist"
-                                    name="filtrationListType"
-                                    checked={this.state.filtrationListType === "black"}
-                                    onChange={(e) => {
-                                        if (e.target.checked) this.setState({filtrationListType: "black"})
-                                    }}
-                                />
-                            </Bootstrap.Col>
-                        </Bootstrap.Form.Group>
-                    </fieldset>
-                    <Bootstrap.Collapse in={this.state.filtrationListType !== "none"}>
-                        <Bootstrap.Form.Group as={Bootstrap.Row}>
-                            <Bootstrap.Col sm={2}>
-                            </Bootstrap.Col>
-                            <Bootstrap.Col sm={10}>
-                                {this.state.filtrationList.map((address, index) => (
-                                    <Bootstrap.Form.Control className={"mb-2"}
-                                                            placeholder={"http://www.w3.org/1999/02/22-rdf-syntax-ns#type"}
-                                                            value={address}
-                                                            onChange={(e) => {
-                                                                this.setState(prev => {
-                                                                    prev.filtrationList[index] = e.target.value;
-                                                                    return {filtrationList: prev.filtrationList};
-                                                                })
-                                                            }}/>))}
-                                <Bootstrap.Button
-                                    onClick={() => {
-                                        this.setState(prev => ({filtrationList: prev.filtrationList.concat([""])}));
-                                    }}>Add</Bootstrap.Button>
-                            </Bootstrap.Col>
-                        </Bootstrap.Form.Group>
-                    </Bootstrap.Collapse>
+                    {this.renderUriDescription()}
+                    {this.renderFiltrationList()}
                     {this.renderMappingFiltration()}
                     {this.renderPropertiesNormalization()}
-                    <Bootstrap.Form.Group as={Bootstrap.Row}>
-                        <Bootstrap.Form.Label column sm={2}>
-                            Object normalization:
-                        </Bootstrap.Form.Label>
-                        <Bootstrap.Col sm={10}>
-                            {this.state.objectNormalization.map((pair, index) => {
-                                return (<Bootstrap.Row>
-                                        <Bootstrap.Col sm={6}>
-                                            <Bootstrap.Form.Control className={"mb-2"}
-                                                                    placeholder={"Quick Event"}
-                                                                    value={pair[0]}
-                                                                    onChange={(e) => {
-                                                                        this.setState(prev => {
-                                                                            prev.objectNormalization[index][0] = e.target.value;
-                                                                            return {objectNormalization: prev.objectNormalization};
-                                                                        })
-                                                                    }}/>
-                                        </Bootstrap.Col>
-                                        <Bootstrap.Col sm={6}>
-                                            <Bootstrap.Form.Control className={"mb-2"}
-                                                                    placeholder={"Event"}
-                                                                    value={pair[1]}
-                                                                    onChange={(e) => {
-                                                                        this.setState(prev => {
-                                                                            prev.objectNormalization[index][1] = e.target.value;
-                                                                            return {objectNormalization: prev.objectNormalization};
-                                                                        })
-                                                                    }}/>
-                                        </Bootstrap.Col>
-                                    </Bootstrap.Row>
-                                )
-                            })}
-                            <Bootstrap.Button
-                                onClick={() => this.setState(prev => ({objectNormalization: prev.objectNormalization.concat([["", ""]])}))}
-                            >Add pair</Bootstrap.Button>
-                        </Bootstrap.Col>
-                    </Bootstrap.Form.Group>
+                    {this.renderObjectNormalization()}
                     {this.renderMissingPropertyNormalization()}
                 </Bootstrap.Card.Body>
             </Bootstrap.Card>
+        )
+    }
+
+    renderObjectNormalization() {
+        return (
+            <Bootstrap.Form.Group as={Bootstrap.Row}>
+                <Bootstrap.Form.Label column sm={2}>
+                    Object normalization:
+                </Bootstrap.Form.Label>
+                <Bootstrap.Col sm={10}>
+                    {this.state.objectNormalization.map((pair, index) => {
+                        return (<Bootstrap.Row key={index}>
+                                <Bootstrap.Col sm={6}>
+                                    <Bootstrap.Form.Control className={"mb-2"}
+                                                            placeholder={"Quick Event"}
+                                                            value={pair[0]}
+                                                            onChange={(e) => {
+                                                                this.setState(prev => {
+                                                                    prev.objectNormalization[index][0] = e.target.value;
+                                                                    return {objectNormalization: prev.objectNormalization};
+                                                                })
+                                                            }}/>
+                                </Bootstrap.Col>
+                                <Bootstrap.Col sm={6}>
+                                    <Bootstrap.Form.Control className={"mb-2"}
+                                                            placeholder={"Event"}
+                                                            value={pair[1]}
+                                                            onChange={(e) => {
+                                                                this.setState(prev => {
+                                                                    prev.objectNormalization[index][1] = e.target.value;
+                                                                    return {objectNormalization: prev.objectNormalization};
+                                                                })
+                                                            }}/>
+                                </Bootstrap.Col>
+                            </Bootstrap.Row>
+                        )
+                    })}
+                    <AddRowButton length={this.state.objectNormalization.length}
+                                  onClick={() => this.setState(prev => ({objectNormalization: prev.objectNormalization.concat([["", ""]])}))}/>
+                </Bootstrap.Col>
+            </Bootstrap.Form.Group>
+        )
+    }
+
+    renderFiltrationList() {
+        return (<>
+            <fieldset>
+                <Bootstrap.Form.Group as={Bootstrap.Row}>
+                    <Bootstrap.Form.Label as="legend" column sm={2}>
+                        Filtration list:
+                    </Bootstrap.Form.Label>
+                    <Bootstrap.Col className={"align-items-center d-flex"} sm={10}>
+                        <Bootstrap.Form.Check
+                            inline
+                            type="radio"
+                            label="None"
+                            name="filtrationListType"
+                            checked={this.state.filtrationListType === "none"}
+                            onChange={(e) => {
+                                if (e.target.checked) this.setState({filtrationListType: "none"})
+                            }}
+                        />
+                        <Bootstrap.Form.Check
+                            inline
+                            type="radio"
+                            label="Whitelist"
+                            name="filtrationListType"
+                            checked={this.state.filtrationListType === "white"}
+                            onChange={(e) => {
+                                if (e.target.checked) this.setState({filtrationListType: "white"})
+                            }}
+                        />
+                        <Bootstrap.Form.Check
+                            inline
+                            type="radio"
+                            label="Blacklist"
+                            name="filtrationListType"
+                            checked={this.state.filtrationListType === "black"}
+                            onChange={(e) => {
+                                if (e.target.checked) this.setState({filtrationListType: "black"})
+                            }}
+                        />
+                    </Bootstrap.Col>
+                </Bootstrap.Form.Group>
+            </fieldset>
+            <Bootstrap.Collapse in={this.state.filtrationListType !== "none"}>
+                <Bootstrap.Form.Group as={Bootstrap.Row}>
+                    <Bootstrap.Col sm={2}>
+                    </Bootstrap.Col>
+                    <Bootstrap.Col sm={10}>
+                        {this.state.filtrationList.map((address, index) => (
+                            <Bootstrap.Form.Control key={index} className={"mb-2"}
+                                                    placeholder={"http://www.w3.org/1999/02/22-rdf-syntax-ns#type"}
+                                                    value={address}
+                                                    onChange={(e) => {
+                                                        this.setState(prev => {
+                                                            prev.filtrationList[index] = e.target.value;
+                                                            return {filtrationList: prev.filtrationList};
+                                                        })
+                                                    }}/>))}
+                        <AddRowButton length={this.state.filtrationList.length} onClick={() => {
+                            this.setState(prev => ({filtrationList: prev.filtrationList.concat([""])}));
+                        }}/>
+                    </Bootstrap.Col>
+                </Bootstrap.Form.Group>
+            </Bootstrap.Collapse>
+        </>)
+    }
+
+    renderUriDescription() {
+        return (
+            <Bootstrap.Form.Group as={Bootstrap.Row}>
+                <Bootstrap.Form.Label column sm={2}>
+                    URI description:
+                </Bootstrap.Form.Label>
+                <Bootstrap.Col sm={10}>
+                    {this.state.URIDescription.map((pair, index) => {
+                        return (<Bootstrap.Row key={index}>
+                                <Bootstrap.Col sm={6}>
+                                    <Bootstrap.Form.Control className={"mb-2"}
+                                                            placeholder={"http://www.w3.org/2000/01/rdf-schema#label"}
+                                                            value={pair[0]}
+                                                            onChange={(e) => {
+                                                                this.setState(prev => {
+                                                                    prev.URIDescription[index][0] = e.target.value;
+                                                                    return {URIDescription: prev.URIDescription};
+                                                                })
+                                                            }}/>
+                                </Bootstrap.Col>
+                                <Bootstrap.Col sm={6}>
+                                    <Bootstrap.Form.Control className={"mb-2"}
+                                                            placeholder={"http://purl.org/dc/terms/title"}
+                                                            value={pair[1]}
+                                                            onChange={(e) => {
+                                                                this.setState(prev => {
+                                                                    prev.URIDescription[index][1] = e.target.value;
+                                                                    return {URIDescription: prev.URIDescription};
+                                                                })
+                                                            }}/>
+                                </Bootstrap.Col>
+                            </Bootstrap.Row>
+                        )
+                    })}
+                    <AddRowButton length={this.state.URIDescription.length}
+                                  onClick={() => this.setState(prev => ({URIDescription: prev.URIDescription.concat([["", ""]])}))}/>
+                </Bootstrap.Col>
+            </Bootstrap.Form.Group>
         )
     }
 
@@ -516,7 +604,7 @@ class Tabs extends React.Component {
                 </Bootstrap.Form.Label>
                 <Bootstrap.Col sm={10}>
                     {this.state.missingPropertyNormalization.map((pair, index) => {
-                        return (<Bootstrap.Row>
+                        return (<Bootstrap.Row key={index}>
                                 <Bootstrap.Col sm={6}>
                                     <Bootstrap.Form.Control className={"mb-2"}
                                                             placeholder={"http://purl.org/dc/elements/1.1/spatial"}
@@ -531,7 +619,7 @@ class Tabs extends React.Component {
                                 <Bootstrap.Col sm={6}>
                                     {pair[1].map((trackedFile, innerIndex) => {
                                         return (
-                                            <Bootstrap.Row>
+                                            <Bootstrap.Row key={index + ":" + innerIndex}>
                                                 <Bootstrap.Col>
                                                     <Bootstrap.Form.Control className={"mb-2"}
                                                                             placeholder={"Other"}
@@ -546,21 +634,21 @@ class Tabs extends React.Component {
                                             </Bootstrap.Row>
                                         )
                                     })}
-                                    <Bootstrap.Button
-                                        onClick={() => {
-                                            this.setState(prev => {
-                                                prev.missingPropertyNormalization[index][1] = prev.missingPropertyNormalization[index][1].concat([""]);
-                                                return {missingPropertyNormalization: prev.missingPropertyNormalization};
-                                            });
-                                        }}>Add value</Bootstrap.Button>
+                                    <Bootstrap.Button className={"mb-2"} variant={"outline-success"}
+                                                      onClick={() => {
+                                                          this.setState(prev => {
+                                                              prev.missingPropertyNormalization[index][1] = prev.missingPropertyNormalization[index][1].concat([""]);
+                                                              return {missingPropertyNormalization: prev.missingPropertyNormalization};
+                                                          });
+                                                      }}>Add value</Bootstrap.Button>
                                 </Bootstrap.Col>
                             </Bootstrap.Row>
                         )
                     })}
-                    <Bootstrap.Button className={"mt-2"}
-                                      onClick={() => {
-                                          this.setState(prev => ({missingPropertyNormalization: prev.missingPropertyNormalization.concat([["", [""]]])}));
-                                      }}>Add property</Bootstrap.Button>
+
+                    <AddRowButton length={this.state.missingPropertyNormalization.length} onClick={() => {
+                        this.setState(prev => ({missingPropertyNormalization: prev.missingPropertyNormalization.concat([["", [""]]])}));
+                    }}/>
                 </Bootstrap.Col>
             </Bootstrap.Form.Group>
         )
@@ -574,7 +662,7 @@ class Tabs extends React.Component {
                 </Bootstrap.Form.Label>
                 <Bootstrap.Col sm={10}>
                     {this.state.propertiesNormalization.map((pair, index) => {
-                        return (<Bootstrap.Row>
+                        return (<Bootstrap.Row key={index}>
                                 <Bootstrap.Col sm={6}>
                                     <Bootstrap.Form.Control className={"mb-2"}
                                                             placeholder={"http://purl.org/dc/elements/1.1/format"}
@@ -589,7 +677,7 @@ class Tabs extends React.Component {
                                 <Bootstrap.Col sm={6}>
                                     {pair[1].map((trackedFile, innerIndex) => {
                                         return (
-                                            <Bootstrap.Row>
+                                            <Bootstrap.Row key={index + ":" + innerIndex}>
                                                 <Bootstrap.Col>
                                                     <Bootstrap.Form.Control className={"mb-2"}
                                                                             placeholder={"format"}
@@ -604,21 +692,20 @@ class Tabs extends React.Component {
                                             </Bootstrap.Row>
                                         )
                                     })}
-                                    <Bootstrap.Button
-                                        onClick={() => {
-                                            this.setState(prev => {
-                                                prev.propertiesNormalization[index][1] = prev.propertiesNormalization[index][1].concat([""]);
-                                                return {propertiesNormalization: prev.propertiesNormalization};
-                                            });
-                                        }}>Add copy to</Bootstrap.Button>
+                                    <Bootstrap.Button variant={"outline-success"}
+                                                      onClick={() => {
+                                                          this.setState(prev => {
+                                                              prev.propertiesNormalization[index][1] = prev.propertiesNormalization[index][1].concat([""]);
+                                                              return {propertiesNormalization: prev.propertiesNormalization};
+                                                          });
+                                                      }}>Add copy</Bootstrap.Button>
                                 </Bootstrap.Col>
                             </Bootstrap.Row>
                         )
                     })}
-                    <Bootstrap.Button className={"mt-1"}
-                                      onClick={() => {
-                                          this.setState(prev => ({propertiesNormalization: prev.propertiesNormalization.concat([["", [""]]])}));
-                                      }}>Add property</Bootstrap.Button>
+                    <AddRowButton length={this.state.propertiesNormalization.length} onClick={() => {
+                        this.setState(prev => ({propertiesNormalization: prev.propertiesNormalization.concat([["", [""]]])}));
+                    }}/>
                 </Bootstrap.Col>
             </Bootstrap.Form.Group>
         )
@@ -671,10 +758,10 @@ class Tabs extends React.Component {
                         </Bootstrap.Col>
                         <Bootstrap.Col sm={10}>
                             {this.state.mappingFiltration.map((pair, index) => {
-                                return (<Bootstrap.Row>
+                                return (<Bootstrap.Row key={index}>
                                         <Bootstrap.Col sm={6}>
                                             <Bootstrap.Form.Control className={"mb-2"}
-                                                                    placeholder={"http://www.w3.org/2000/01/rdf-schema#label"}
+                                                                    placeholder={"http://www.w3.org/1999/02/22-rdf-syntax-ns#typ"}
                                                                     value={pair[0]}
                                                                     onChange={(e) => {
                                                                         this.setState(prev => {
@@ -686,10 +773,10 @@ class Tabs extends React.Component {
                                         <Bootstrap.Col sm={6}>
                                             {pair[1].map((trackedFile, innerIndex) => {
                                                 return (
-                                                    <Bootstrap.Row>
+                                                    <Bootstrap.Row key={index + ":" + innerIndex}>
                                                         <Bootstrap.Col>
                                                             <Bootstrap.Form.Control className={"mb-2"}
-                                                                                    placeholder={"http://purl.org/dc/terms/title"}
+                                                                                    placeholder={"Tracked File"}
                                                                                     value={trackedFile}
                                                                                     onChange={(e) => {
                                                                                         this.setState(prev => {
@@ -701,21 +788,20 @@ class Tabs extends React.Component {
                                                     </Bootstrap.Row>
                                                 )
                                             })}
-                                            <Bootstrap.Button
-                                                onClick={() => {
-                                                    this.setState(prev => {
-                                                        prev.mappingFiltration[index][1] = prev.mappingFiltration[index][1].concat([""]);
-                                                        return {mappingFiltration: prev.mappingFiltration};
-                                                    });
-                                                }}>Add object</Bootstrap.Button>
+                                            <Bootstrap.Button variant={"outline-success"}
+                                                              onClick={() => {
+                                                                  this.setState(prev => {
+                                                                      prev.mappingFiltration[index][1] = prev.mappingFiltration[index][1].concat([""]);
+                                                                      return {mappingFiltration: prev.mappingFiltration};
+                                                                  });
+                                                              }}>Add object</Bootstrap.Button>
                                         </Bootstrap.Col>
                                     </Bootstrap.Row>
                                 )
                             })}
-                            <Bootstrap.Button
-                                onClick={() => {
-                                    this.setState(prev => ({mappingFiltration: prev.mappingFiltration.concat([["", [""]]])}));
-                                }}>Add property</Bootstrap.Button>
+                            <AddRowButton length={this.state.mappingFiltration.length} onClick={() => {
+                                this.setState(prev => ({mappingFiltration: prev.mappingFiltration.concat([["", [""]]])}));
+                            }}/>
                         </Bootstrap.Col>
                     </Bootstrap.Form.Group>
                 </Bootstrap.Collapse>
@@ -786,7 +872,7 @@ class Tabs extends React.Component {
                         </Bootstrap.Form.Label>
                         <Bootstrap.Col sm={10}>
                             {this.state.queries.map((query, index) => (
-                                <Bootstrap.Form.Control className={"mb-2"} rows={3} as={"textarea"}
+                                <Bootstrap.Form.Control key={index} className={"mb-2"} rows={3} as={"textarea"}
                                                         value={query}
                                                         onChange={(e) => {
                                                             this.setState(prev => {
@@ -794,10 +880,9 @@ class Tabs extends React.Component {
                                                                 return {queries: prev.queries};
                                                             })
                                                         }}/>))}
-                            <Bootstrap.Button
-                                onClick={() => {
-                                    this.setState(prev => ({queries: prev.queries.concat([""])}));
-                                }}>Add</Bootstrap.Button>
+                            <AddRowButton length={this.state.queries.length} onClick={() => {
+                                this.setState(prev => ({queries: prev.queries.concat([""])}));
+                            }}/>
                         </Bootstrap.Col>
                     </Bootstrap.Form.Group>
                 </Bootstrap.Card.Body>
@@ -816,7 +901,7 @@ class Tabs extends React.Component {
                         </Bootstrap.Form.Label>
                         <Bootstrap.Col sm={10}>
                             {this.state.documentAddresses.map((address, index) => (
-                                <Bootstrap.Form.Control className={"mb-2"}
+                                <Bootstrap.Form.Control key={index} className={"mb-2"}
                                                         placeholder={"https://example.org/dataset.ttl"}
                                                         value={address}
                                                         onChange={(e) => {
@@ -825,10 +910,11 @@ class Tabs extends React.Component {
                                                                 return {documentAddresses: prev.documentAddresses};
                                                             })
                                                         }}/>))}
-                            <Bootstrap.Button
-                                onClick={() => {
-                                    this.setState(prev => ({documentAddresses: prev.documentAddresses.concat([""])}));
-                                }}>Add</Bootstrap.Button>
+
+
+                            <AddRowButton length={this.state.documentAddresses.length} onClick={() => {
+                                this.setState(prev => ({documentAddresses: prev.documentAddresses.concat([""])}));
+                            }}/>
                         </Bootstrap.Col>
                     </Bootstrap.Form.Group>
                 </Bootstrap.Card.Body>
