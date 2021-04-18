@@ -5,7 +5,9 @@ import axios from 'axios';
 import {Link} from 'react-router-dom';
 import {BarChart, Bar, CartesianGrid, Legend, Tooltip, XAxis, YAxis, ResponsiveContainer} from "recharts";
 import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
-import {faPencilAlt, faPlay, faStop, faTrash} from '@fortawesome/free-solid-svg-icons'
+import {faPencilAlt, faPlay, faStop, faTrash} from '@fortawesome/free-solid-svg-icons';
+
+const api = axios.create({baseURL: 'http://localhost:8080/api/'});
 
 function durationToText(duration) {
     let time = duration % 1000 + "ms";
@@ -26,11 +28,11 @@ class UpdateRecord extends React.Component {
         return (
             <Bootstrap.Row>
                 <Bootstrap.Col lg={6}>
-                    <Bootstrap.Col className="p-0">
+                    <Bootstrap.Col className="p-0 text-lg-left">
                         <Bootstrap.Badge
                             variant={this.props.updateRecord.finishState === "SUCCESS" ? "success" : (this.props.updateRecord.finishState === "STOPPED" ? "dark" : "danger")}> {this.props.updateRecord.finishState}</Bootstrap.Badge>
                     </Bootstrap.Col>
-                    <Bootstrap.Col className="p-0">
+                    <Bootstrap.Col className="p-0 text-lg-left">
                         {new Date(this.props.updateRecord.lastUpdateStartDate).toLocaleString()}
                     </Bootstrap.Col>
                 </Bootstrap.Col>
@@ -68,12 +70,16 @@ class IndexRow extends React.Component {
         return (<>
                 <Bootstrap.Accordion.Toggle as={"tbody"} className={"border-0"} eventKey={this.props.data.name}>
                     <tr className={rowColor}>
-                        <th scope={"row"}>{this.props.data.name}</th>
+                        <th scope={"row"}><h4 className={"m-0"}>{this.props.data.name}</h4></th>
                         <td>{this.props.running == null ? (this.props.data.lastSuccessAndLastTenUpdateRecords[0] ? 'Indexed' : 'Not indexed') : (<>
                             <Bootstrap.Spinner size="sm" animation="border"/> {this.props.running}</>)}</td>
-                        <td className={"pt-1 pb-1"}>
-                            {this.props.data.lastSuccessAndLastTenUpdateRecords.length <= 1 ? 'Not updated yet' :
-                                <UpdateRecord updateRecord={this.props.data.lastSuccessAndLastTenUpdateRecords[1]}/>}
+                        <td className={"pt-1 pb-1 text-center"}>
+                            <div className={"justify-content-center"}>
+                                {this.props.data.lastSuccessAndLastTenUpdateRecords.length <= 1 ?
+                                    <h4><Bootstrap.Badge variant={"warning"}>Not updated yet</Bootstrap.Badge></h4> :
+                                    <UpdateRecord
+                                        updateRecord={this.props.data.lastSuccessAndLastTenUpdateRecords[1]}/>}
+                            </div>
                         </td>
                         <td>
                             {Object.keys(this.props.data.dashboards).map(dashboard => {
@@ -105,14 +111,14 @@ class IndexRow extends React.Component {
                                     </Link>
                                 </div>
                                 <div className={"m-auto"}
-                                     onClick={() => axios.post('http://localhost:8080/api/config/' + this.props.data.name + (this.props.running == null ? '/start' : '/stop'))}>
+                                     onClick={() => api.post('config/' + this.props.data.name + (this.props.running == null ? '/start' : '/stop'))}>
                                     {this.props.running == null ?
                                         <FontAwesomeIcon className="text-dark pointer" icon={faPlay} title={"Index"}/> :
                                         <FontAwesomeIcon className="text-dark pointer" icon={faStop}
                                                          title={"Stop indexation"}/>}
                                 </div>
                                 <div className={"m-auto"}
-                                     onClick={() => axios.delete('http://localhost:8080/api/config/' + this.props.data.name)}
+                                     onClick={() => api.delete('config/' + this.props.data.name)}
                                 >
                                     <FontAwesomeIcon className="text-danger pointer" icon={faTrash} title={"Delete"}/>
                                 </div>
@@ -123,67 +129,69 @@ class IndexRow extends React.Component {
                 <tbody className={"border-0"}>
                 <tr className={rowColor}>
                     <td colSpan={5} className={"p-0 m-0 border-0"}>
-                        <Bootstrap.Accordion.Collapse eventKey={this.props.data.name}
-                                                      onExiting={() => this.setState({open: false})}
-                                                      onEntered={() => this.setState({open: true})}>
-                            <Bootstrap.Row className="p-2">
-                                <Bootstrap.Col>
-                                    <Bootstrap.Card>
-                                        <Bootstrap.Card.Body>
-                                            <Bootstrap.Card.Title>Last success update:</Bootstrap.Card.Title>
-                                            <Bootstrap.Card.Text>
-                                                {this.props.data.lastSuccessAndLastTenUpdateRecords[0] ?
-                                                    new Date(this.props.data.lastSuccessAndLastTenUpdateRecords[0].lastUpdateStartDate).toLocaleString()
-                                                    : "Never"}
-                                                <br/>
-                                                {this.props.data.lastSuccessAndLastTenUpdateRecords[0] ?
-                                                    "Duration: " + durationToText(this.props.data.lastSuccessAndLastTenUpdateRecords[0].lastUpdateDuration)
-                                                    : ""}
-                                            </Bootstrap.Card.Text>
-                                        </Bootstrap.Card.Body>
-                                    </Bootstrap.Card>
-                                    <Bootstrap.Card>
-                                        <Bootstrap.Card.Header>Last updates:</Bootstrap.Card.Header>
-                                        <Bootstrap.Card.Body>
-                                            <Bootstrap.ListGroup variant="flush">
-                                                {this.props.data.lastSuccessAndLastTenUpdateRecords.map((record, index) => {
-                                                    if (index === 0) return "";
-                                                    return (
-                                                        <Bootstrap.ListGroup.Item key={index} className={"p-0"}>
-                                                            <UpdateRecord updateRecord={record}/>
-                                                        </Bootstrap.ListGroup.Item>
-                                                    )
-                                                })}
-                                            </Bootstrap.ListGroup>
-                                        </Bootstrap.Card.Body>
-                                    </Bootstrap.Card>
-                                </Bootstrap.Col>
-                                <Bootstrap.Col>
-                                    <ResponsiveContainer width={this.state.open ? "100%" : "10"} height="100%">
-                                        <BarChart
-                                            width={500}
-                                            height={300}
-                                            data={graphData}
-                                            margin={{
-                                                top: 5,
-                                                right: 30,
-                                                left: 20,
-                                                bottom: 5,
-                                            }}
-                                        >
-                                            <CartesianGrid strokeDasharray="3 3"/>
-                                            <XAxis dataKey="date" reversed="true"/>
-                                            <YAxis/>
-                                            <Tooltip/>
-                                            <Legend/>
-                                            <Bar dataKey="SUCCESS" stackId={"a"} fill="#28a745"/>
-                                            <Bar dataKey="STOPPED" stackId={"a"} fill="#000000"/>
-                                            <Bar dataKey="FAILED" stackId={"a"} fill="#DC3545"/>
-                                        </BarChart>
-                                    </ResponsiveContainer>
-                                </Bootstrap.Col>
-                            </Bootstrap.Row>
-                        </Bootstrap.Accordion.Collapse>
+                        {this.props.data.lastSuccessAndLastTenUpdateRecords[0] ?
+                            <Bootstrap.Accordion.Collapse eventKey={this.props.data.name}
+                                                          onExiting={() => this.setState({open: false})}
+                                                          onEntered={() => this.setState({open: true})}>
+                                <Bootstrap.Row className="p-2">
+                                    <Bootstrap.Col>
+                                        <Bootstrap.Card>
+                                            <Bootstrap.Card.Body>
+                                                <Bootstrap.Card.Title>Last success update:</Bootstrap.Card.Title>
+                                                <Bootstrap.Card.Text>
+                                                    {this.props.data.lastSuccessAndLastTenUpdateRecords[0] ?
+                                                        new Date(this.props.data.lastSuccessAndLastTenUpdateRecords[0].lastUpdateStartDate).toLocaleString()
+                                                        : "Never"}
+                                                    <br/>
+                                                    {this.props.data.lastSuccessAndLastTenUpdateRecords[0] ?
+                                                        "Duration: " + durationToText(this.props.data.lastSuccessAndLastTenUpdateRecords[0].lastUpdateDuration)
+                                                        : ""}
+                                                </Bootstrap.Card.Text>
+                                            </Bootstrap.Card.Body>
+                                        </Bootstrap.Card>
+                                        <Bootstrap.Card>
+                                            <Bootstrap.Card.Header>Last updates:</Bootstrap.Card.Header>
+                                            <Bootstrap.Card.Body>
+                                                <Bootstrap.ListGroup variant="flush">
+                                                    {this.props.data.lastSuccessAndLastTenUpdateRecords.map((record, index) => {
+                                                        if (index === 0) return "";
+                                                        return (
+                                                            <Bootstrap.ListGroup.Item key={index} className={"p-0"}>
+                                                                <UpdateRecord updateRecord={record}/>
+                                                            </Bootstrap.ListGroup.Item>
+                                                        )
+                                                    })}
+                                                </Bootstrap.ListGroup>
+                                            </Bootstrap.Card.Body>
+                                        </Bootstrap.Card>
+                                    </Bootstrap.Col>
+                                    <Bootstrap.Col>
+                                        <ResponsiveContainer width={this.state.open ? "100%" : "10"} height="100%">
+                                            <BarChart
+                                                width={500}
+                                                height={300}
+                                                data={graphData}
+                                                margin={{
+                                                    top: 5,
+                                                    right: 30,
+                                                    left: 20,
+                                                    bottom: 5,
+                                                }}
+                                            >
+                                                <CartesianGrid strokeDasharray="3 3"/>
+                                                <XAxis dataKey="date" reversed="true"/>
+                                                <YAxis/>
+                                                <Tooltip/>
+                                                <Legend/>
+                                                <Bar dataKey="SUCCESS" stackId={"a"} fill="#28a745"/>
+                                                <Bar dataKey="STOPPED" stackId={"a"} fill="#000000"/>
+                                                <Bar dataKey="FAILED" stackId={"a"} fill="#DC3545"/>
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                    </Bootstrap.Col>
+                                </Bootstrap.Row>
+                            </Bootstrap.Accordion.Collapse> : ""
+                        }
                     </td>
                 </tr>
                 </tbody>
@@ -198,12 +206,12 @@ class IndexTable extends React.Component {
         this.state = {
             configs: Array(1),
             running: {},
-            configsInterval: setInterval(() => axios.get('http://localhost:8080/api/configs').then((response) => this.setState({configs: response.data})), 10 * 1000),
-            runningInterval: setInterval(() => axios.get('http://localhost:8080/api/running').then((response) => this.setState({running: response.data})), 1000)
+            configsInterval: setInterval(() => api.get('configs').then((response) => this.setState({configs: response.data})), 10 * 1000),
+            runningInterval: setInterval(() => api.get('running').then((response) => this.setState({running: response.data})), 1000)
         }
-        axios.get('http://localhost:8080/api/kibanaHost').then((response) => this.setState({dashBoardAddress: response.data + "/app/dashboards#/view/"}))
-        axios.get('http://localhost:8080/api/configs').then((response) => this.setState({configs: response.data}))
-        axios.get('http://localhost:8080/api/running').then((response) => this.setState({running: response.data}));
+        api.get('kibanaHost').then((response) => this.setState({dashBoardAddress: response.data + "/app/dashboards#/view/"}));
+        api.get('configs').then((response) => this.setState({configs: response.data}));
+        api.get('running').then((response) => this.setState({running: response.data}));
     }
 
     componentWillUnmount() {

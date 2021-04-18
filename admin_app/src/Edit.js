@@ -4,6 +4,8 @@ import "./Edit.css";
 import {Link, withRouter} from "react-router-dom";
 import axios from "axios";
 
+const api = axios.create({baseURL: 'http://localhost:8080/api/'});
+
 class AddRowButton extends React.Component {
     render() {
         return (
@@ -14,7 +16,8 @@ class AddRowButton extends React.Component {
                     <div className="text-success plus-text" aria-hidden="true">&#43;</div>
                 </button>
                 <div className="w-100 m-0 ml-2 mr-2 border border-success"/>
-            </div>)
+            </div>
+        )
     }
 }
 
@@ -68,7 +71,7 @@ class Tabs extends React.Component {
             readOnly: true,
             configRaw: ""
         };
-        if (this.props.name) axios.get('http://localhost:8080/api/config/' + this.props.name).then((response) => {
+        if (this.props.name) api.get('config/' + this.props.name).then((response) => {
             this.setState({config: response.data}, () =>
                 this.setState({configRaw: JSON.stringify(this.state.config, null, 7)}, () => {
                         this.setStateFromConfig();
@@ -79,31 +82,40 @@ class Tabs extends React.Component {
 
     }
 
-    sendConfig = () => {
-        let config = this.convertVarsToConfig();
-        axios.put('http://localhost:8080/api/config', config);
+    getConfigToSend(e) {
+        let config = this.state.readOnly ? this.convertVarsToConfig() : this.convertConfigRawToVars()
+        if (config.name!==undefined&&config.name.length>0)
+            return config;
+        else
+            e.preventDefault()
+            throw "Bad 'name' of config";
     }
-    sendConfigAndIndex = () => {
-        let config = this.convertVarsToConfig();
-        axios.put('http://localhost:8080/api/configAndIndex', config);
+
+    sendConfig = (e) => {
+        let config = this.getConfigToSend(e);
+        api.put('config', config);
+    }
+    sendConfigAndIndex = (e) => {
+        let config = this.getConfigToSend(e);
+        api.put('configAndIndex', config);
     }
 
     createSaveButtons() {
         return (
-            <>
+            <div className={"save-buttons"}>
                 <Link to={"/"}>
                     <Bootstrap.Button variant={"success"}
                                       className={'mr-3'}
-                                      onClick={() => this.sendConfig()}
+                                      onClick={(e) => this.sendConfig(e)}
                     >Save</Bootstrap.Button>
                 </Link>
                 <Link to={"/"}>
                     <Bootstrap.Button variant={"success"}
                                       className={'mr-3'}
-                                      onClick={() => this.sendConfigAndIndex()}
+                                      onClick={(e) => this.sendConfigAndIndex(e)}
                     >Save and index</Bootstrap.Button>
                 </Link>
-            </>
+            </div>
         )
     }
 
@@ -306,21 +318,21 @@ class Tabs extends React.Component {
                     <Bootstrap.Card.Header>Endpoint:</Bootstrap.Card.Header>
                     <Bootstrap.Card.Body>
                         <Bootstrap.Form.Group as={Bootstrap.Row}>
-                            <Bootstrap.Form.Label column sm={2}>
+                            <Bootstrap.Form.Label column md={2}>
                                 Index name:
                             </Bootstrap.Form.Label>
-                            <Bootstrap.Col sm={10}>
+                            <Bootstrap.Col md={10}>
                                 <Bootstrap.Form.Control placeholder="index-name" value={this.state.name}
                                                         readOnly={this.props.match.params.name}
-                                                        onChange={(e) => this.setState({name: e.target.value})}/>
+                                                        onChange={(e) => this.setState({name: e.target.value.toLowerCase()})}/>
                             </Bootstrap.Col>
                         </Bootstrap.Form.Group>
                         <fieldset>
                             <Bootstrap.Form.Group as={Bootstrap.Row}>
-                                <Bootstrap.Form.Label as="legend" column sm={2}>
-                                    Updating:
+                                <Bootstrap.Form.Label as="legend" column md={2}>
+                                    Index updating:
                                 </Bootstrap.Form.Label>
-                                <Bootstrap.Col className={"align-items-center d-flex"} sm={10}>
+                                <Bootstrap.Col className={"align-items-center d-flex"} md={10}>
                                     <Bootstrap.Form.Check
                                         inline
                                         type="radio"
@@ -347,10 +359,10 @@ class Tabs extends React.Component {
                         </Bootstrap.Collapse>
                         <fieldset>
                             <Bootstrap.Form.Group as={Bootstrap.Row}>
-                                <Bootstrap.Form.Label as="legend" column sm={2}>
+                                <Bootstrap.Form.Label as="legend" column md={2}>
                                     Source type:
                                 </Bootstrap.Form.Label>
-                                <Bootstrap.Col className={"align-items-center d-flex"} sm={10}>
+                                <Bootstrap.Col className={"align-items-center d-flex"} md={10}>
                                     <Bootstrap.Form.Check
                                         inline
                                         type="switch"
@@ -398,10 +410,10 @@ class Tabs extends React.Component {
             <Bootstrap.Card>
                 <Bootstrap.Card.Body>
                     <Bootstrap.Form.Group as={Bootstrap.Row}>
-                        <Bootstrap.Form.Label as="legend" column sm={2}>
+                        <Bootstrap.Form.Label as="legend" column md={2}>
                             Include resource URI:
                         </Bootstrap.Form.Label>
-                        <Bootstrap.Col className={"align-items-center d-flex"} sm={10}>
+                        <Bootstrap.Col className={"align-items-center d-flex"} md={10}>
                             <Bootstrap.Form.Check
                                 inline
                                 type="switch"
@@ -413,10 +425,10 @@ class Tabs extends React.Component {
                         </Bootstrap.Col>
                     </Bootstrap.Form.Group>
                     <Bootstrap.Form.Group as={Bootstrap.Row}>
-                        <Bootstrap.Form.Label as="legend" column sm={2}>
+                        <Bootstrap.Form.Label as="legend" column md={2}>
                             Add languages:
                         </Bootstrap.Form.Label>
-                        <Bootstrap.Col className={"align-items-center d-flex"} sm={10}>
+                        <Bootstrap.Col className={"align-items-center d-flex"} md={10}>
                             <Bootstrap.Form.Check
                                 inline
                                 type="switch"
@@ -428,10 +440,10 @@ class Tabs extends React.Component {
                         </Bootstrap.Col>
                     </Bootstrap.Form.Group>
                     <Bootstrap.Form.Group as={Bootstrap.Row}>
-                        <Bootstrap.Form.Label as="legend" column sm={2}>
+                        <Bootstrap.Form.Label as="legend" column md={2}>
                             Default language:
                         </Bootstrap.Form.Label>
-                        <Bootstrap.Col className={"align-items-center d-flex"} sm={1}>
+                        <Bootstrap.Col className={"align-items-center d-flex"} md={2} lg={1}>
                             <Bootstrap.Form.Control
                                 value={this.state.language}
                                 onChange={(e) => this.setState({language: e.target.value})}
@@ -452,10 +464,10 @@ class Tabs extends React.Component {
     renderObjectNormalization() {
         return (
             <Bootstrap.Form.Group as={Bootstrap.Row}>
-                <Bootstrap.Form.Label column sm={2}>
+                <Bootstrap.Form.Label column md={2}>
                     Object normalization:
                 </Bootstrap.Form.Label>
-                <Bootstrap.Col sm={10}>
+                <Bootstrap.Col md={10}>
                     {this.state.objectNormalization.map((pair, index) => {
                         return (<Bootstrap.Row key={index}>
                                 <Bootstrap.Col sm={6}>
@@ -494,10 +506,10 @@ class Tabs extends React.Component {
         return (<>
             <fieldset>
                 <Bootstrap.Form.Group as={Bootstrap.Row}>
-                    <Bootstrap.Form.Label as="legend" column sm={2}>
+                    <Bootstrap.Form.Label as="legend" column md={2}>
                         Filtration list:
                     </Bootstrap.Form.Label>
-                    <Bootstrap.Col className={"align-items-center d-flex"} sm={10}>
+                    <Bootstrap.Col className={"align-items-center d-flex"} md={10}>
                         <Bootstrap.Form.Check
                             inline
                             type="radio"
@@ -533,9 +545,9 @@ class Tabs extends React.Component {
             </fieldset>
             <Bootstrap.Collapse in={this.state.filtrationListType !== "none"}>
                 <Bootstrap.Form.Group as={Bootstrap.Row}>
-                    <Bootstrap.Col sm={2}>
+                    <Bootstrap.Col md={2}>
                     </Bootstrap.Col>
-                    <Bootstrap.Col sm={10}>
+                    <Bootstrap.Col md={10}>
                         {this.state.filtrationList.map((address, index) => (
                             <Bootstrap.Form.Control key={index} className={"mb-2"}
                                                     placeholder={"http://www.w3.org/1999/02/22-rdf-syntax-ns#type"}
@@ -558,10 +570,10 @@ class Tabs extends React.Component {
     renderUriDescription() {
         return (
             <Bootstrap.Form.Group as={Bootstrap.Row}>
-                <Bootstrap.Form.Label column sm={2}>
+                <Bootstrap.Form.Label column md={2}>
                     URI description:
                 </Bootstrap.Form.Label>
-                <Bootstrap.Col sm={10}>
+                <Bootstrap.Col md={10}>
                     {this.state.URIDescription.map((pair, index) => {
                         return (<Bootstrap.Row key={index}>
                                 <Bootstrap.Col sm={6}>
@@ -599,10 +611,10 @@ class Tabs extends React.Component {
     renderMissingPropertyNormalization() {
         return (
             <Bootstrap.Form.Group as={Bootstrap.Row}>
-                <Bootstrap.Form.Label as="legend" column sm={2}>
+                <Bootstrap.Form.Label as="legend" column md={2}>
                     Missing property normalization:
                 </Bootstrap.Form.Label>
-                <Bootstrap.Col sm={10}>
+                <Bootstrap.Col md={10}>
                     {this.state.missingPropertyNormalization.map((pair, index) => {
                         return (<Bootstrap.Row key={index}>
                                 <Bootstrap.Col sm={6}>
@@ -657,10 +669,10 @@ class Tabs extends React.Component {
     renderPropertiesNormalization() {
         return (
             <Bootstrap.Form.Group as={Bootstrap.Row}>
-                <Bootstrap.Form.Label as="legend" column sm={2}>
+                <Bootstrap.Form.Label as="legend" column md={2}>
                     Properties normalization:
                 </Bootstrap.Form.Label>
-                <Bootstrap.Col sm={10}>
+                <Bootstrap.Col md={10}>
                     {this.state.propertiesNormalization.map((pair, index) => {
                         return (<Bootstrap.Row key={index}>
                                 <Bootstrap.Col sm={6}>
@@ -715,10 +727,10 @@ class Tabs extends React.Component {
         return (<>
                 <fieldset>
                     <Bootstrap.Form.Group as={Bootstrap.Row}>
-                        <Bootstrap.Form.Label as="legend" column sm={2}>
+                        <Bootstrap.Form.Label as="legend" column md={2}>
                             Mapping filtration:
                         </Bootstrap.Form.Label>
-                        <Bootstrap.Col className={"align-items-center d-flex"} sm={10}>
+                        <Bootstrap.Col className={"align-items-center d-flex"} md={10}>
                             <Bootstrap.Form.Check
                                 inline
                                 type="radio"
@@ -754,9 +766,9 @@ class Tabs extends React.Component {
                 </fieldset>
                 <Bootstrap.Collapse in={this.state.mappingFiltrationType !== "none"}>
                     <Bootstrap.Form.Group as={Bootstrap.Row}>
-                        <Bootstrap.Col sm={2}>
+                        <Bootstrap.Col md={2}>
                         </Bootstrap.Col>
-                        <Bootstrap.Col sm={10}>
+                        <Bootstrap.Col md={10}>
                             {this.state.mappingFiltration.map((pair, index) => {
                                 return (<Bootstrap.Row key={index}>
                                         <Bootstrap.Col sm={6}>
@@ -815,10 +827,10 @@ class Tabs extends React.Component {
                 <Bootstrap.Card.Header>SPARQL</Bootstrap.Card.Header>
                 <Bootstrap.Card.Body>
                     <Bootstrap.Form.Group as={Bootstrap.Row}>
-                        <Bootstrap.Form.Label column sm={2}>
+                        <Bootstrap.Form.Label column md={2}>
                             SPARQL endpoint:
                         </Bootstrap.Form.Label>
-                        <Bootstrap.Col sm={10}>
+                        <Bootstrap.Col md={10}>
                             <Bootstrap.Form.Control placeholder="https://example.org/sparql"
                                                     value={this.state.sparqlEndpoint}
                                                     onChange={(e) => this.setState({sparqlEndpoint: e.target.value})}/>
@@ -826,10 +838,10 @@ class Tabs extends React.Component {
                     </Bootstrap.Form.Group>
                     <fieldset>
                         <Bootstrap.Form.Group as={Bootstrap.Row}>
-                            <Bootstrap.Form.Label as="legend" column sm={2}>
+                            <Bootstrap.Form.Label as="legend" column md={2}>
                                 Query type:
                             </Bootstrap.Form.Label>
-                            <Bootstrap.Col className={"align-items-center d-flex"} sm={10}>
+                            <Bootstrap.Col className={"align-items-center d-flex"} md={10}>
                                 <Bootstrap.Form.Check
                                     inline
                                     type="radio"
@@ -867,10 +879,10 @@ class Tabs extends React.Component {
                         </Bootstrap.Form.Group>
                     </fieldset>
                     <Bootstrap.Form.Group as={Bootstrap.Row} controlId="sparqlEndpoint">
-                        <Bootstrap.Form.Label column sm={2}>
+                        <Bootstrap.Form.Label column md={2}>
                             Query:
                         </Bootstrap.Form.Label>
-                        <Bootstrap.Col sm={10}>
+                        <Bootstrap.Col md={10}>
                             {this.state.queries.map((query, index) => (
                                 <Bootstrap.Form.Control key={index} className={"mb-2"} rows={3} as={"textarea"}
                                                         value={query}
@@ -896,10 +908,10 @@ class Tabs extends React.Component {
                 <Bootstrap.Card.Header>Document</Bootstrap.Card.Header>
                 <Bootstrap.Card.Body>
                     <Bootstrap.Form.Group as={Bootstrap.Row} controlId="documentEndpoint">
-                        <Bootstrap.Form.Label column sm={2}>
+                        <Bootstrap.Form.Label column md={2}>
                             Addresses:
                         </Bootstrap.Form.Label>
-                        <Bootstrap.Col sm={10}>
+                        <Bootstrap.Col md={10}>
                             {this.state.documentAddresses.map((address, index) => (
                                 <Bootstrap.Form.Control key={index} className={"mb-2"}
                                                         placeholder={"https://example.org/dataset.ttl"}
@@ -927,7 +939,7 @@ class Tabs extends React.Component {
         return (
             <Bootstrap.Card className={"ml-5 mb-2"}>
                 <Bootstrap.Card.Body>
-                    <Bootstrap.Form.Row>
+                    <Bootstrap.Form.Row className={"align-items-end"}>
                         <Bootstrap.Form.Group as={Bootstrap.Col} md="2">
                             <Bootstrap.Form.Label>Second</Bootstrap.Form.Label>
                             <Bootstrap.Form.Control
