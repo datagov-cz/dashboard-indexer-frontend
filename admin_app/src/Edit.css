@@ -3,15 +3,34 @@
     position: relative;
     border-width: 2px !important;
 }
-.plus-text{
+
+.plus-text {
     font-size: 1.2em;
     margin-top: -0.25em;
 }
+
+.right-0 {
+    right: 0;
+}
+
+.top-0 {
+    top: 0;
+}
+
 .save-buttons {
     position: fixed;
     top: 0;
     right: 0;
     z-index: 1020;
     padding-top: .5rem;
+}
+
+.cronList {
+    color: white;
+}
+
+.cronList th {
+    padding-left: 1.5em;
+    vertical-align: top !important;
 }
 

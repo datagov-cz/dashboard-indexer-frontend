@@ -1,8 +1,10 @@
 import React from "react";
 import * as Bootstrap from "react-bootstrap";
 import "./Edit.css";
-import {Link, withRouter} from "react-router-dom";
+import {withRouter} from "react-router-dom";
 import axios from "axios";
+import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
+import {faTimes, faTimesCircle} from "@fortawesome/free-solid-svg-icons";
 
 const api = axios.create({baseURL: 'http://localhost:8080/api/'});
 
@@ -34,7 +36,8 @@ class Edit extends React.Component {
                 </Bootstrap.Row>
                 <Bootstrap.Row>
                     <Bootstrap.Col>
-                        <Tabs match={this.props.match} name={this.props.match.params.name}/>
+                        <Tabs match={this.props.match} history={this.props.history}
+                              name={this.props.match.params.name}/>
                     </Bootstrap.Col>
                 </Bootstrap.Row>
             </Bootstrap.Container>
@@ -69,7 +72,10 @@ class Tabs extends React.Component {
             missingPropertyNormalization: [],//array of pairs [string,array of strings]
             config: {},
             readOnly: true,
-            configRaw: ""
+            configRaw: "",
+            minReqPopup: false,
+            minRawReq: false,
+            askToConvertRawToVars: false,
         };
         if (this.props.name) api.get('config/' + this.props.name).then((response) => {
             this.setState({config: response.data}, () =>
@@ -82,39 +88,23 @@ class Tabs extends React.Component {
 
     }
 
-    getConfigToSend(e) {
-        let config = this.state.readOnly ? this.convertVarsToConfig() : this.convertConfigRawToVars()
-        if (config.name!==undefined&&config.name.length>0)
-            return config;
-        else
-            e.preventDefault()
-            throw "Bad 'name' of config";
-    }
-
-    sendConfig = (e) => {
-        let config = this.getConfigToSend(e);
-        api.put('config', config);
-    }
-    sendConfigAndIndex = (e) => {
-        let config = this.getConfigToSend(e);
-        api.put('configAndIndex', config);
+    sendConfig(address, config) {
+        api.put(address, config);
     }
 
     createSaveButtons() {
         return (
             <div className={"save-buttons"}>
-                <Link to={"/"}>
-                    <Bootstrap.Button variant={"success"}
-                                      className={'mr-3'}
-                                      onClick={(e) => this.sendConfig(e)}
-                    >Save</Bootstrap.Button>
-                </Link>
-                <Link to={"/"}>
-                    <Bootstrap.Button variant={"success"}
-                                      className={'mr-3'}
-                                      onClick={(e) => this.sendConfigAndIndex(e)}
-                    >Save and index</Bootstrap.Button>
-                </Link>
+                <Bootstrap.Button type="submit" variant={"success"}
+                                  className={'mr-3'}
+                                  name={"save"}
+                                  value={"config"}
+                >Save</Bootstrap.Button>
+                <Bootstrap.Button type="submit" variant={"success"}
+                                  className={'mr-3'}
+                                  name={"save"}
+                                  value={"configAndIndex"}
+                >Save and index</Bootstrap.Button>
             </div>
         )
     }
@@ -260,8 +250,14 @@ class Tabs extends React.Component {
         });
     }
 
-    convertConfigRawToVars() {
+    showPopupForConvertConfigRawToVars() {
         if (this.state.readOnly) return;
+        this.setState({askToConvertRawToVars: true})
+    }
+
+    convertConfigRawToVars() {
+        this.setState({askToConvertRawToVars: false})
+        //TODO: catch
         let config = JSON.parse(this.state.configRaw);
         this.setState({readOnly: true});
         this.setState({config: config}, () =>
@@ -271,10 +267,9 @@ class Tabs extends React.Component {
 
     render() {
         return (<>
-                {/*TODO: to navbar*/}
                 {this.createSaveButtons()}
                 <Bootstrap.Tabs defaultActiveKey="interactive" onSelect={(e) => {
-                    if (e === "raw") this.convertVarsToConfig(); else this.convertConfigRawToVars();
+                    if (e === "raw") this.convertVarsToConfig(); else this.showPopupForConvertConfigRawToVars();
                 }}>
                     <Bootstrap.Tab eventKey="interactive" title="Interactive">
                         <Bootstrap.Card className={"border-top-0"}>
@@ -297,10 +292,11 @@ class Tabs extends React.Component {
 
     renderRawTab() {
         return (
-            <Bootstrap.Form>
+            <Bootstrap.Form method={"post"} onSubmit={(e) => this.checkValidity(e)}>
+                {this.createSaveButtons()}
                 <Bootstrap.Form.Check type="checkbox" label="Read only" checked={this.state.readOnly}
                                       onChange={(event) => {
-                                          if (event.target.checked) this.convertConfigRawToVars();
+                                          if (event.target.checked) this.showPopupForConvertConfigRawToVars();
                                           else this.setState({readOnly: false});
                                       }}/>
                 <Bootstrap.Form.Control rows={25} as={"textarea"} readOnly={this.state.readOnly}
@@ -311,9 +307,131 @@ class Tabs extends React.Component {
         )
     }
 
+    checkEmpty(e) {
+        let emptyInputs = e.target.querySelectorAll('input[value=""],textarea:empty');
+        for (let i = 0; i < emptyInputs.length; ++i) {
+            emptyInputs[i].classList.add("is-invalid");
+        }
+        let hiddenInputs = e.target.querySelectorAll('.collapse:not(.show,.exclude) input.is-invalid,.collapse:not(.show,.exclude) textarea.is-invalid')
+        for (let i = 0; i < hiddenInputs.length; ++i) {
+            hiddenInputs[i].classList.remove("is-invalid");
+        }
+    }
+
+    minRequirements() {
+        return !((this.state.sparql && this.state.queries.length < 1) || (this.state.documents && this.state.documentAddresses.length < 1));
+    }
+
+    checkValidity(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!this.state.readOnly) {
+            //TODO: catch
+            let config = JSON.parse(this.state.configRaw);
+            if (config.config === undefined || config.config.index === undefined || config.config.index.index === undefined || config.config.index.index.split("").length < 1) {
+                this.setState({minRawReq: true});
+                return;
+            }
+            this.sendConfig(e.nativeEvent.submitter.value, config);
+            this.props.history.push("/");
+            return;
+        }
+        this.checkEmpty(e);
+        if (!this.minRequirements()) {
+            this.setState({minReqPopup: true});
+            return;
+        }
+        let firstProblemInput = e.target.querySelector('.is-invalid');
+        if (firstProblemInput === null) {
+            this.sendConfig(e.nativeEvent.submitter.value, this.convertVarsToConfig());
+            this.props.history.push("/");
+        } else {
+            firstProblemInput.focus();
+        }
+
+    }
+
+    createPopups() {
+        return (<>
+            <Bootstrap.Modal
+                show={this.state.minReqPopup}
+                size="sm"
+                centered
+            >
+                <Bootstrap.Modal.Header className={"bg-danger bg-danger text-light"}>
+                    <FontAwesomeIcon
+                        className="pointer position-absolute right-0 top-0 m-2"
+                        icon={faTimes}
+                        title={"Close"}
+                        onClick={() => this.setState({minReqPopup: false})}/>
+                    <Bootstrap.Modal.Title>
+                        Minimum Requirements
+                    </Bootstrap.Modal.Title>
+
+                </Bootstrap.Modal.Header>
+                <Bootstrap.Modal.Body>
+                    {this.state.sparql && this.state.queries.length < 1 ? <><h5>Source type: SPARQL</h5>
+                        <p>
+                            At least one SPARQL query is required!
+                        </p></> : ""}
+                    {this.state.documents && this.state.documentAddresses.length < 1 ? <><h5>Source type:
+                        Document</h5>
+                        <p>
+                            At least one Document URI is required!
+                        </p></> : ""}
+                </Bootstrap.Modal.Body>
+            </Bootstrap.Modal>
+            <Bootstrap.Modal
+                show={this.state.minRawReq}
+                centered
+            >
+                <Bootstrap.Modal.Header className={"bg-danger bg-danger text-light"}>
+                    <FontAwesomeIcon
+                        className="pointer position-absolute right-0 top-0 m-2"
+                        icon={faTimes}
+                        title={"Close"}
+                        onClick={() => this.setState({minRawReq: false})}/>
+                    <Bootstrap.Modal.Title>
+                        Name required
+                    </Bootstrap.Modal.Title>
+
+                </Bootstrap.Modal.Header>
+                <Bootstrap.Modal.Body>
+                    <p>
+                        Index name is required, can't start with '@temp-' and can't contain '{'\\, /, ?, ", <, >, |'}'.
+                    </p>
+                    <pre>Example:{' \n'}
+
+                        {JSON.stringify({"config": {"index": {"index": "name-here", "type": "rdf"}}}, null, 4)}
+                    </pre>
+                </Bootstrap.Modal.Body>
+            </Bootstrap.Modal>
+            <Bootstrap.Modal show={this.state.askToConvertRawToVars} animation={true}>
+                <Bootstrap.Modal.Header closeButton>
+                    <Bootstrap.Modal.Title>Convert to interactive</Bootstrap.Modal.Title>
+                </Bootstrap.Modal.Header>
+                <Bootstrap.Modal.Body>
+                    <p className={"text-danger"}>When converting to interactive mode, unknown attributes will be
+                        lost.</p>
+                    <p>Are you sure you want to convert to interactive mode?</p>
+                </Bootstrap.Modal.Body>
+                <Bootstrap.Modal.Footer>
+                    <Bootstrap.Button variant="secondary" onClick={() => this.convertConfigRawToVars()}>
+                        Yes
+                    </Bootstrap.Button>
+                    <Bootstrap.Button variant="secondary" onClick={() => this.setState({askToConvertRawToVars: false})}>
+                        No
+                    </Bootstrap.Button>
+                </Bootstrap.Modal.Footer>
+            </Bootstrap.Modal>
+        </>)
+    }
+
     renderInteractive() {
         return (
-            <Bootstrap.Form>
+            <Bootstrap.Form method={"post"} onSubmit={(e) => this.checkValidity(e)}>
+                {this.createSaveButtons()}
+                {this.createPopups()}
                 <Bootstrap.Card>
                     <Bootstrap.Card.Header>Endpoint:</Bootstrap.Card.Header>
                     <Bootstrap.Card.Body>
@@ -324,7 +442,16 @@ class Tabs extends React.Component {
                             <Bootstrap.Col md={10}>
                                 <Bootstrap.Form.Control placeholder="index-name" value={this.state.name}
                                                         readOnly={this.props.match.params.name}
-                                                        onChange={(e) => this.setState({name: e.target.value.toLowerCase()})}/>
+                                                        onChange={(e) => {
+                                                            e.target.classList.remove('is-invalid');
+                                                            if (e.target.value.startsWith("@temp-") || e.target.value.toLowerCase().split("").some(char => "\\/?\"<>|".indexOf(char) !== -1))
+                                                                e.target.classList.add('is-invalid');
+                                                            this.setState({name: e.target.value.toLowerCase()});
+                                                        }}
+                                />
+                                <Bootstrap.Form.Control.Feedback type={"invalid"}>Field is required. Index name can't
+                                    start with '@temp-' and can't contain
+                                    '{'\\, /, ?, ", <, >, |'}'.</Bootstrap.Form.Control.Feedback>
                             </Bootstrap.Col>
                         </Bootstrap.Form.Group>
                         <fieldset>
@@ -370,7 +497,11 @@ class Tabs extends React.Component {
                                         name="typeSparqlCheck"
                                         id="typeSparqlCheck"
                                         checked={this.state.sparql}
-                                        onChange={(e) => this.setState({sparql: e.target.checked})}
+                                        onChange={(e) => {
+                                            if (!e.target.checked && !this.state.documents)
+                                                this.setState({documents: true})
+                                            this.setState({sparql: e.target.checked})
+                                        }}
                                     />
                                     <Bootstrap.Form.Check
                                         inline
@@ -379,7 +510,11 @@ class Tabs extends React.Component {
                                         name="typeDocumentCheck"
                                         id="typeDocumentCheck"
                                         checked={this.state.documents}
-                                        onChange={(e) => this.setState({documents: e.target.checked})}
+                                        onChange={(e) => {
+                                            if (!e.target.checked && !this.state.sparql)
+                                                this.setState({sparql: true})
+                                            this.setState({documents: e.target.checked})
+                                        }}
                                     />
                                 </Bootstrap.Col>
                             </Bootstrap.Form.Group>
@@ -407,55 +542,75 @@ class Tabs extends React.Component {
 
     renderAdvanced() {
         return (
-            <Bootstrap.Card>
+            <Bootstrap.Card className={"exclude"}>
                 <Bootstrap.Card.Body>
-                    <Bootstrap.Form.Group as={Bootstrap.Row}>
-                        <Bootstrap.Form.Label as="legend" column md={2}>
-                            Include resource URI:
-                        </Bootstrap.Form.Label>
-                        <Bootstrap.Col className={"align-items-center d-flex"} md={10}>
-                            <Bootstrap.Form.Check
-                                inline
-                                type="switch"
-                                name="includeResourceURI"
-                                id="includeResourceURI"
-                                checked={this.state.includeResourceURI}
-                                onChange={(e) => this.setState({includeResourceURI: e.target.checked})}
-                            />
-                        </Bootstrap.Col>
-                    </Bootstrap.Form.Group>
-                    <Bootstrap.Form.Group as={Bootstrap.Row}>
-                        <Bootstrap.Form.Label as="legend" column md={2}>
-                            Add languages:
-                        </Bootstrap.Form.Label>
-                        <Bootstrap.Col className={"align-items-center d-flex"} md={10}>
-                            <Bootstrap.Form.Check
-                                inline
-                                type="switch"
-                                name="addLanguages"
-                                id="addLanguages"
-                                checked={this.state.addLanguage}
-                                onChange={(e) => this.setState({addLanguage: e.target.checked})}
-                            />
-                        </Bootstrap.Col>
-                    </Bootstrap.Form.Group>
-                    <Bootstrap.Form.Group as={Bootstrap.Row}>
-                        <Bootstrap.Form.Label as="legend" column md={2}>
-                            Default language:
-                        </Bootstrap.Form.Label>
-                        <Bootstrap.Col className={"align-items-center d-flex"} md={2} lg={1}>
-                            <Bootstrap.Form.Control
-                                value={this.state.language}
-                                onChange={(e) => this.setState({language: e.target.value})}
-                            />
-                        </Bootstrap.Col>
-                    </Bootstrap.Form.Group>
-                    {this.renderUriDescription()}
-                    {this.renderFiltrationList()}
-                    {this.renderMappingFiltration()}
-                    {this.renderPropertiesNormalization()}
-                    {this.renderObjectNormalization()}
-                    {this.renderMissingPropertyNormalization()}
+                    <Bootstrap.ListGroup variant="flush">
+                        <Bootstrap.ListGroup.Item className="pb-0">
+                            <Bootstrap.Form.Group as={Bootstrap.Row}>
+                                <Bootstrap.Form.Label as="legend" column md={2}>
+                                    Include resource URI:
+                                </Bootstrap.Form.Label>
+                                <Bootstrap.Col className={"align-items-center d-flex"} md={10}>
+                                    <Bootstrap.Form.Check
+                                        inline
+                                        type="switch"
+                                        name="includeResourceURI"
+                                        id="includeResourceURI"
+                                        checked={this.state.includeResourceURI}
+                                        onChange={(e) => this.setState({includeResourceURI: e.target.checked})}
+                                    />
+                                </Bootstrap.Col>
+                            </Bootstrap.Form.Group>
+                        </Bootstrap.ListGroup.Item>
+                        <Bootstrap.ListGroup.Item className="pb-0">
+                            <Bootstrap.Form.Group as={Bootstrap.Row}>
+                                <Bootstrap.Form.Label as="legend" column md={2}>
+                                    Add languages:
+                                </Bootstrap.Form.Label>
+                                <Bootstrap.Col className={"align-items-center d-flex"} md={10}>
+                                    <Bootstrap.Form.Check
+                                        inline
+                                        type="switch"
+                                        name="addLanguages"
+                                        id="addLanguages"
+                                        checked={this.state.addLanguage}
+                                        onChange={(e) => this.setState({addLanguage: e.target.checked})}
+                                    />
+                                </Bootstrap.Col>
+                            </Bootstrap.Form.Group>
+                        </Bootstrap.ListGroup.Item>
+                        <Bootstrap.ListGroup.Item className="pb-0">
+                            <Bootstrap.Form.Group as={Bootstrap.Row}>
+                                <Bootstrap.Form.Label as="legend" column md={2}>
+                                    Default language:
+                                </Bootstrap.Form.Label>
+                                <Bootstrap.Col className={"align-items-center d-flex"} md={2} lg={1}>
+                                    <Bootstrap.Form.Control
+                                        value={this.state.language}
+                                        onChange={(e) => this.setState({language: e.target.value})}
+                                    />
+                                </Bootstrap.Col>
+                            </Bootstrap.Form.Group>
+                        </Bootstrap.ListGroup.Item>
+                        <Bootstrap.ListGroup.Item className="pb-0">
+                            {this.renderUriDescription()}
+                        </Bootstrap.ListGroup.Item>
+                        <Bootstrap.ListGroup.Item className="pb-0">
+                            {this.renderFiltrationList()}
+                        </Bootstrap.ListGroup.Item>
+                        <Bootstrap.ListGroup.Item className="pb-0">
+                            {this.renderMappingFiltration()}
+                        </Bootstrap.ListGroup.Item>
+                        <Bootstrap.ListGroup.Item className="pb-0">
+                            {this.renderPropertiesNormalization()}
+                        </Bootstrap.ListGroup.Item>
+                        <Bootstrap.ListGroup.Item className="pb-0">
+                            {this.renderObjectNormalization()}
+                        </Bootstrap.ListGroup.Item>
+                        <Bootstrap.ListGroup.Item className="pb-0">
+                            {this.renderMissingPropertyNormalization()}
+                        </Bootstrap.ListGroup.Item>
+                    </Bootstrap.ListGroup>
                 </Bootstrap.Card.Body>
             </Bootstrap.Card>
         )
@@ -469,30 +624,44 @@ class Tabs extends React.Component {
                 </Bootstrap.Form.Label>
                 <Bootstrap.Col md={10}>
                     {this.state.objectNormalization.map((pair, index) => {
-                        return (<Bootstrap.Row key={index}>
-                                <Bootstrap.Col sm={6}>
-                                    <Bootstrap.Form.Control className={"mb-2"}
-                                                            placeholder={"Quick Event"}
-                                                            value={pair[0]}
-                                                            onChange={(e) => {
-                                                                this.setState(prev => {
-                                                                    prev.objectNormalization[index][0] = e.target.value;
-                                                                    return {objectNormalization: prev.objectNormalization};
-                                                                })
-                                                            }}/>
-                                </Bootstrap.Col>
-                                <Bootstrap.Col sm={6}>
-                                    <Bootstrap.Form.Control className={"mb-2"}
-                                                            placeholder={"Event"}
-                                                            value={pair[1]}
-                                                            onChange={(e) => {
-                                                                this.setState(prev => {
-                                                                    prev.objectNormalization[index][1] = e.target.value;
-                                                                    return {objectNormalization: prev.objectNormalization};
-                                                                })
-                                                            }}/>
-                                </Bootstrap.Col>
-                            </Bootstrap.Row>
+                        return (
+                            <div key={index} className={"d-flex align-items-center mb-2"}>
+                                <div className={"w-100"}>
+                                    <Bootstrap.Row key={index}>
+                                        <Bootstrap.Col sm={6}>
+                                            <Bootstrap.Form.Control className={"mb-2"}
+                                                                    placeholder={"Quick Event"}
+                                                                    value={pair[0]}
+                                                                    onChange={(e) => {
+                                                                        e.target.classList.remove('is-invalid');
+                                                                        this.setState(prev => {
+                                                                            prev.objectNormalization[index][0] = e.target.value;
+                                                                            return {objectNormalization: prev.objectNormalization};
+                                                                        })
+                                                                    }}/>
+                                        </Bootstrap.Col>
+                                        <Bootstrap.Col sm={6}>
+                                            <Bootstrap.Form.Control className={"mb-2"}
+                                                                    placeholder={"Event"}
+                                                                    value={pair[1]}
+                                                                    onChange={(e) => {
+                                                                        e.target.classList.remove('is-invalid');
+                                                                        this.setState(prev => {
+                                                                            prev.objectNormalization[index][1] = e.target.value;
+                                                                            return {objectNormalization: prev.objectNormalization};
+                                                                        })
+                                                                    }}/>
+                                        </Bootstrap.Col>
+                                    </Bootstrap.Row>
+                                </div>
+                                <div className={"m-2"}>
+                                    <FontAwesomeIcon className="text-danger pointer" size={"lg"} icon={faTimesCircle}
+                                                     title={"Remove"} onClick={() => this.setState((prev) => {
+                                        prev.objectNormalization.splice(index, 1);
+                                        return {objectNormalization: prev.objectNormalization}
+                                    })}/>
+                                </div>
+                            </div>
                         )
                     })}
                     <AddRowButton length={this.state.objectNormalization.length}
@@ -549,15 +718,28 @@ class Tabs extends React.Component {
                     </Bootstrap.Col>
                     <Bootstrap.Col md={10}>
                         {this.state.filtrationList.map((address, index) => (
-                            <Bootstrap.Form.Control key={index} className={"mb-2"}
-                                                    placeholder={"http://www.w3.org/1999/02/22-rdf-syntax-ns#type"}
-                                                    value={address}
-                                                    onChange={(e) => {
-                                                        this.setState(prev => {
-                                                            prev.filtrationList[index] = e.target.value;
-                                                            return {filtrationList: prev.filtrationList};
-                                                        })
-                                                    }}/>))}
+                            <div key={index} className={"d-flex align-items-center mb-2"}>
+                                <div className={"w-100"}>
+                                    <Bootstrap.Form.Control
+                                        placeholder={"http://www.w3.org/1999/02/22-rdf-syntax-ns#type"}
+                                        value={address}
+                                        onChange={(e) => {
+                                            e.target.classList.remove('is-invalid');
+                                            this.setState(prev => {
+                                                prev.filtrationList[index] = e.target.value;
+                                                return {filtrationList: prev.filtrationList};
+                                            })
+                                        }}/>
+                                </div>
+                                <div className={"m-2"}>
+                                    <FontAwesomeIcon className="text-danger pointer" size={"lg"} icon={faTimesCircle}
+                                                     title={"Remove"} onClick={() => this.setState((prev) => {
+                                        prev.filtrationList.splice(index, 1);
+                                        return {filtrationList: prev.filtrationList}
+                                    })}/>
+                                </div>
+                            </div>
+                        ))}
                         <AddRowButton length={this.state.filtrationList.length} onClick={() => {
                             this.setState(prev => ({filtrationList: prev.filtrationList.concat([""])}));
                         }}/>
@@ -575,30 +757,44 @@ class Tabs extends React.Component {
                 </Bootstrap.Form.Label>
                 <Bootstrap.Col md={10}>
                     {this.state.URIDescription.map((pair, index) => {
-                        return (<Bootstrap.Row key={index}>
-                                <Bootstrap.Col sm={6}>
-                                    <Bootstrap.Form.Control className={"mb-2"}
-                                                            placeholder={"http://www.w3.org/2000/01/rdf-schema#label"}
-                                                            value={pair[0]}
-                                                            onChange={(e) => {
-                                                                this.setState(prev => {
-                                                                    prev.URIDescription[index][0] = e.target.value;
-                                                                    return {URIDescription: prev.URIDescription};
-                                                                })
-                                                            }}/>
-                                </Bootstrap.Col>
-                                <Bootstrap.Col sm={6}>
-                                    <Bootstrap.Form.Control className={"mb-2"}
-                                                            placeholder={"http://purl.org/dc/terms/title"}
-                                                            value={pair[1]}
-                                                            onChange={(e) => {
-                                                                this.setState(prev => {
-                                                                    prev.URIDescription[index][1] = e.target.value;
-                                                                    return {URIDescription: prev.URIDescription};
-                                                                })
-                                                            }}/>
-                                </Bootstrap.Col>
-                            </Bootstrap.Row>
+                        return (
+                            <div key={index} className={"d-flex align-items-center mb-2"}>
+                                <div className={"w-100"}>
+                                    <Bootstrap.Row>
+                                        <Bootstrap.Col sm={6}>
+                                            <Bootstrap.Form.Control
+                                                placeholder={"http://www.w3.org/2000/01/rdf-schema#label"}
+                                                value={pair[0]}
+                                                onChange={(e) => {
+                                                    e.target.classList.remove('is-invalid');
+                                                    this.setState(prev => {
+                                                        prev.URIDescription[index][0] = e.target.value;
+                                                        return {URIDescription: prev.URIDescription};
+                                                    })
+                                                }}/>
+                                        </Bootstrap.Col>
+                                        <Bootstrap.Col sm={6}>
+                                            <Bootstrap.Form.Control
+                                                placeholder={"http://purl.org/dc/terms/title"}
+                                                value={pair[1]}
+                                                onChange={(e) => {
+                                                    e.target.classList.remove('is-invalid');
+                                                    this.setState(prev => {
+                                                        prev.URIDescription[index][1] = e.target.value;
+                                                        return {URIDescription: prev.URIDescription};
+                                                    })
+                                                }}/>
+                                        </Bootstrap.Col>
+                                    </Bootstrap.Row>
+                                </div>
+                                <div className={"m-2"}>
+                                    <FontAwesomeIcon className="text-danger pointer" size={"lg"} icon={faTimesCircle}
+                                                     title={"Remove"} onClick={() => this.setState((prev) => {
+                                        prev.URIDescription.splice(index, 1);
+                                        return {URIDescription: prev.URIDescription}
+                                    })}/>
+                                </div>
+                            </div>
                         )
                     })}
                     <AddRowButton length={this.state.URIDescription.length}
@@ -616,45 +812,67 @@ class Tabs extends React.Component {
                 </Bootstrap.Form.Label>
                 <Bootstrap.Col md={10}>
                     {this.state.missingPropertyNormalization.map((pair, index) => {
-                        return (<Bootstrap.Row key={index}>
-                                <Bootstrap.Col sm={6}>
-                                    <Bootstrap.Form.Control className={"mb-2"}
-                                                            placeholder={"http://purl.org/dc/elements/1.1/spatial"}
-                                                            value={pair[0]}
-                                                            onChange={(e) => {
-                                                                this.setState(prev => {
-                                                                    prev.missingPropertyNormalization[index][0] = e.target.value;
-                                                                    return {missingPropertyNormalization: prev.missingPropertyNormalization};
-                                                                })
-                                                            }}/>
-                                </Bootstrap.Col>
-                                <Bootstrap.Col sm={6}>
-                                    {pair[1].map((trackedFile, innerIndex) => {
-                                        return (
-                                            <Bootstrap.Row key={index + ":" + innerIndex}>
-                                                <Bootstrap.Col>
-                                                    <Bootstrap.Form.Control className={"mb-2"}
-                                                                            placeholder={"Other"}
-                                                                            value={trackedFile}
-                                                                            onChange={(e) => {
-                                                                                this.setState(prev => {
-                                                                                    prev.missingPropertyNormalization[index][1][innerIndex] = e.target.value;
-                                                                                    return {missingPropertyNormalization: prev.missingPropertyNormalization};
-                                                                                })
-                                                                            }}/>
-                                                </Bootstrap.Col>
-                                            </Bootstrap.Row>
-                                        )
-                                    })}
-                                    <Bootstrap.Button className={"mb-2"} variant={"outline-success"}
-                                                      onClick={() => {
-                                                          this.setState(prev => {
-                                                              prev.missingPropertyNormalization[index][1] = prev.missingPropertyNormalization[index][1].concat([""]);
-                                                              return {missingPropertyNormalization: prev.missingPropertyNormalization};
-                                                          });
-                                                      }}>Add value</Bootstrap.Button>
-                                </Bootstrap.Col>
-                            </Bootstrap.Row>
+                        return (
+                            <div key={index} className={"d-flex align-items-center mb-2"}>
+                                <div className={"d-flex w-100"}>
+                                    <Bootstrap.Col sm={6}>
+                                        <Bootstrap.Form.Control className={"mb-2"}
+                                                                placeholder={"http://purl.org/dc/elements/1.1/spatial"}
+                                                                value={pair[0]}
+                                                                onChange={(e) => {
+                                                                    e.target.classList.remove('is-invalid');
+                                                                    this.setState(prev => {
+                                                                        prev.missingPropertyNormalization[index][0] = e.target.value;
+                                                                        return {missingPropertyNormalization: prev.missingPropertyNormalization};
+                                                                    })
+                                                                }}/>
+                                    </Bootstrap.Col>
+                                    <Bootstrap.Col sm={6}>
+                                        {pair[1].map((trackedFile, innerIndex) => {
+                                            return (
+                                                <div className={"d-flex w-100"} key={index + ":" + innerIndex}>
+                                                    <Bootstrap.Col className={"p-0"}>
+                                                        {pair[1].length > 1 ? <FontAwesomeIcon
+                                                            className="text-danger pointer position-absolute right-0 mr-1"
+                                                            icon={faTimes}
+                                                            title={"Remove"}
+                                                            onClick={() => this.setState((prev) => {
+                                                                prev.missingPropertyNormalization[index][1].splice(innerIndex, 1);
+                                                                return {missingPropertyNormalization: prev.missingPropertyNormalization}
+                                                            })}/> : ""}
+                                                        <Bootstrap.Form.Control className={"mb-2"}
+                                                                                placeholder={"Other"}
+                                                                                value={trackedFile}
+                                                                                onChange={(e) => {
+                                                                                    e.target.classList.remove('is-invalid');
+                                                                                    this.setState(prev => {
+                                                                                        prev.missingPropertyNormalization[index][1][innerIndex] = e.target.value;
+                                                                                        return {missingPropertyNormalization: prev.missingPropertyNormalization};
+                                                                                    })
+                                                                                }}/>
+                                                    </Bootstrap.Col>
+                                                </div>
+                                            )
+                                        })}
+                                        <Bootstrap.Button className={"mb-2"} variant={"outline-success"}
+                                                          onClick={() => {
+                                                              this.setState(prev => {
+                                                                  prev.missingPropertyNormalization[index][1] = prev.missingPropertyNormalization[index][1].concat([""]);
+                                                                  return {missingPropertyNormalization: prev.missingPropertyNormalization};
+                                                              });
+                                                          }}>Add value</Bootstrap.Button>
+                                    </Bootstrap.Col>
+                                </div>
+                                <div className={"m-2"}>
+                                    <FontAwesomeIcon className="text-danger pointer" size={"lg"}
+                                                     icon={faTimesCircle}
+                                                     title={"Remove"}
+                                                     onClick={() => this.setState((prev) => {
+                                                         prev.missingPropertyNormalization.splice(index, 1);
+                                                         return {missingPropertyNormalization: prev.missingPropertyNormalization}
+                                                     })}/>
+                                </div>
+                            </div>
                         )
                     })}
 
@@ -674,45 +892,67 @@ class Tabs extends React.Component {
                 </Bootstrap.Form.Label>
                 <Bootstrap.Col md={10}>
                     {this.state.propertiesNormalization.map((pair, index) => {
-                        return (<Bootstrap.Row key={index}>
-                                <Bootstrap.Col sm={6}>
-                                    <Bootstrap.Form.Control className={"mb-2"}
-                                                            placeholder={"http://purl.org/dc/elements/1.1/format"}
-                                                            value={pair[0]}
-                                                            onChange={(e) => {
-                                                                this.setState(prev => {
-                                                                    prev.propertiesNormalization[index][0] = e.target.value;
-                                                                    return {propertiesNormalization: prev.propertiesNormalization};
-                                                                })
-                                                            }}/>
-                                </Bootstrap.Col>
-                                <Bootstrap.Col sm={6}>
-                                    {pair[1].map((trackedFile, innerIndex) => {
-                                        return (
-                                            <Bootstrap.Row key={index + ":" + innerIndex}>
-                                                <Bootstrap.Col>
-                                                    <Bootstrap.Form.Control className={"mb-2"}
-                                                                            placeholder={"format"}
-                                                                            value={trackedFile}
-                                                                            onChange={(e) => {
-                                                                                this.setState(prev => {
-                                                                                    prev.propertiesNormalization[index][1][innerIndex] = e.target.value;
-                                                                                    return {propertiesNormalization: prev.propertiesNormalization};
-                                                                                })
-                                                                            }}/>
-                                                </Bootstrap.Col>
-                                            </Bootstrap.Row>
-                                        )
-                                    })}
-                                    <Bootstrap.Button variant={"outline-success"}
-                                                      onClick={() => {
-                                                          this.setState(prev => {
-                                                              prev.propertiesNormalization[index][1] = prev.propertiesNormalization[index][1].concat([""]);
-                                                              return {propertiesNormalization: prev.propertiesNormalization};
-                                                          });
-                                                      }}>Add copy</Bootstrap.Button>
-                                </Bootstrap.Col>
-                            </Bootstrap.Row>
+                        return (
+                            <div key={index} className={"d-flex align-items-center mb-2"}>
+                                <div className={"d-flex w-100"}>
+                                    <Bootstrap.Col sm={6}>
+                                        <Bootstrap.Form.Control
+                                            placeholder={"http://purl.org/dc/elements/1.1/format"}
+                                            value={pair[0]}
+                                            onChange={(e) => {
+                                                e.target.classList.remove('is-invalid');
+                                                this.setState(prev => {
+                                                    prev.propertiesNormalization[index][0] = e.target.value;
+                                                    return {propertiesNormalization: prev.propertiesNormalization};
+                                                })
+                                            }}/>
+                                    </Bootstrap.Col>
+                                    <Bootstrap.Col sm={6}>
+                                        {pair[1].map((trackedFile, innerIndex) => {
+                                            return (
+                                                <div className={"d-flex w-100"} key={index + ":" + innerIndex}>
+                                                    <Bootstrap.Col className={"p-0"}>
+                                                        {pair[1].length > 1 ? <FontAwesomeIcon
+                                                            className="text-danger pointer position-absolute right-0 mr-1"
+                                                            icon={faTimes}
+                                                            title={"Remove"}
+                                                            onClick={() => this.setState((prev) => {
+                                                                prev.propertiesNormalization[index][1].splice(innerIndex, 1);
+                                                                return {propertiesNormalization: prev.propertiesNormalization}
+                                                            })}/> : ""}
+                                                        <Bootstrap.Form.Control className={"mb-2"}
+                                                                                placeholder={"format"}
+                                                                                value={trackedFile}
+                                                                                onChange={(e) => {
+                                                                                    e.target.classList.remove('is-invalid');
+                                                                                    this.setState(prev => {
+                                                                                        prev.propertiesNormalization[index][1][innerIndex] = e.target.value;
+                                                                                        return {propertiesNormalization: prev.propertiesNormalization};
+                                                                                    })
+                                                                                }}/>
+                                                    </Bootstrap.Col>
+                                                </div>
+                                            )
+                                        })}
+                                        <Bootstrap.Button variant={"outline-success"}
+                                                          onClick={() => {
+                                                              this.setState(prev => {
+                                                                  prev.propertiesNormalization[index][1] = prev.propertiesNormalization[index][1].concat([""]);
+                                                                  return {propertiesNormalization: prev.propertiesNormalization};
+                                                              });
+                                                          }}>Add copy</Bootstrap.Button>
+                                    </Bootstrap.Col>
+                                </div>
+                                <div className={"m-2"}>
+                                    <FontAwesomeIcon className="text-danger pointer" size={"lg"}
+                                                     icon={faTimesCircle}
+                                                     title={"Remove"}
+                                                     onClick={() => this.setState((prev) => {
+                                                         prev.propertiesNormalization.splice(index, 1);
+                                                         return {propertiesNormalization: prev.propertiesNormalization}
+                                                     })}/>
+                                </div>
+                            </div>
                         )
                     })}
                     <AddRowButton length={this.state.propertiesNormalization.length} onClick={() => {
@@ -770,45 +1010,67 @@ class Tabs extends React.Component {
                         </Bootstrap.Col>
                         <Bootstrap.Col md={10}>
                             {this.state.mappingFiltration.map((pair, index) => {
-                                return (<Bootstrap.Row key={index}>
-                                        <Bootstrap.Col sm={6}>
-                                            <Bootstrap.Form.Control className={"mb-2"}
-                                                                    placeholder={"http://www.w3.org/1999/02/22-rdf-syntax-ns#typ"}
-                                                                    value={pair[0]}
-                                                                    onChange={(e) => {
-                                                                        this.setState(prev => {
-                                                                            prev.mappingFiltration[index][0] = e.target.value;
-                                                                            return {mappingFiltration: prev.mappingFiltration};
-                                                                        })
-                                                                    }}/>
-                                        </Bootstrap.Col>
-                                        <Bootstrap.Col sm={6}>
-                                            {pair[1].map((trackedFile, innerIndex) => {
-                                                return (
-                                                    <Bootstrap.Row key={index + ":" + innerIndex}>
-                                                        <Bootstrap.Col>
-                                                            <Bootstrap.Form.Control className={"mb-2"}
-                                                                                    placeholder={"Tracked File"}
-                                                                                    value={trackedFile}
-                                                                                    onChange={(e) => {
-                                                                                        this.setState(prev => {
-                                                                                            prev.mappingFiltration[index][1][innerIndex] = e.target.value;
-                                                                                            return {mappingFiltration: prev.mappingFiltration};
-                                                                                        })
-                                                                                    }}/>
-                                                        </Bootstrap.Col>
-                                                    </Bootstrap.Row>
-                                                )
-                                            })}
-                                            <Bootstrap.Button variant={"outline-success"}
-                                                              onClick={() => {
-                                                                  this.setState(prev => {
-                                                                      prev.mappingFiltration[index][1] = prev.mappingFiltration[index][1].concat([""]);
-                                                                      return {mappingFiltration: prev.mappingFiltration};
-                                                                  });
-                                                              }}>Add object</Bootstrap.Button>
-                                        </Bootstrap.Col>
-                                    </Bootstrap.Row>
+                                return (
+                                    <div key={index} className={"d-flex align-items-center mb-2"}>
+                                        <div className={"d-flex w-100"}>
+                                            <Bootstrap.Col sm={6}>
+                                                <Bootstrap.Form.Control
+                                                    placeholder={"http://www.w3.org/1999/02/22-rdf-syntax-ns#typ"}
+                                                    value={pair[0]}
+                                                    onChange={(e) => {
+                                                        e.target.classList.remove('is-invalid');
+                                                        this.setState(prev => {
+                                                            prev.mappingFiltration[index][0] = e.target.value;
+                                                            return {mappingFiltration: prev.mappingFiltration};
+                                                        })
+                                                    }}/>
+                                            </Bootstrap.Col>
+                                            <Bootstrap.Col sm={6}>
+                                                {pair[1].map((trackedFile, innerIndex) => {
+                                                    return (
+                                                        <div className={"d-flex w-100"} key={index + ":" + innerIndex}>
+                                                            <Bootstrap.Col className={"p-0"}>
+                                                                {pair[1].length > 1 ? <FontAwesomeIcon
+                                                                    className="text-danger pointer position-absolute right-0 mr-1"
+                                                                    icon={faTimes}
+                                                                    title={"Remove"}
+                                                                    onClick={() => this.setState((prev) => {
+                                                                        prev.mappingFiltration[index][1].splice(innerIndex, 1);
+                                                                        return {mappingFiltration: prev.mappingFiltration}
+                                                                    })}/> : ""}
+                                                                <Bootstrap.Form.Control className={"mb-2"}
+                                                                                        placeholder={"Tracked File"}
+                                                                                        value={trackedFile}
+                                                                                        onChange={(e) => {
+                                                                                            e.target.classList.remove('is-invalid');
+                                                                                            this.setState(prev => {
+                                                                                                prev.mappingFiltration[index][1][innerIndex] = e.target.value;
+                                                                                                return {mappingFiltration: prev.mappingFiltration};
+                                                                                            })
+                                                                                        }}/>
+                                                            </Bootstrap.Col>
+                                                        </div>
+                                                    )
+                                                })}
+                                                <Bootstrap.Button variant={"outline-success"}
+                                                                  onClick={() => {
+                                                                      this.setState(prev => {
+                                                                          prev.mappingFiltration[index][1] = prev.mappingFiltration[index][1].concat([""]);
+                                                                          return {mappingFiltration: prev.mappingFiltration};
+                                                                      });
+                                                                  }}>Add object</Bootstrap.Button>
+                                            </Bootstrap.Col>
+                                        </div>
+                                        <div className={"m-2"}>
+                                            <FontAwesomeIcon className="text-danger pointer" size={"lg"}
+                                                             icon={faTimesCircle}
+                                                             title={"Remove"}
+                                                             onClick={() => this.setState((prev) => {
+                                                                 prev.mappingFiltration.splice(index, 1);
+                                                                 return {mappingFiltration: prev.mappingFiltration}
+                                                             })}/>
+                                        </div>
+                                    </div>
                                 )
                             })}
                             <AddRowButton length={this.state.mappingFiltration.length} onClick={() => {
@@ -833,7 +1095,10 @@ class Tabs extends React.Component {
                         <Bootstrap.Col md={10}>
                             <Bootstrap.Form.Control placeholder="https://example.org/sparql"
                                                     value={this.state.sparqlEndpoint}
-                                                    onChange={(e) => this.setState({sparqlEndpoint: e.target.value})}/>
+                                                    onChange={(e) => {
+                                                        e.target.classList.remove('is-invalid');
+                                                        this.setState({sparqlEndpoint: e.target.value});
+                                                    }}/>
                         </Bootstrap.Col>
                     </Bootstrap.Form.Group>
                     <fieldset>
@@ -884,14 +1149,29 @@ class Tabs extends React.Component {
                         </Bootstrap.Form.Label>
                         <Bootstrap.Col md={10}>
                             {this.state.queries.map((query, index) => (
-                                <Bootstrap.Form.Control key={index} className={"mb-2"} rows={3} as={"textarea"}
-                                                        value={query}
-                                                        onChange={(e) => {
-                                                            this.setState(prev => {
-                                                                prev.queries[index] = e.target.value;
-                                                                return {queries: prev.queries};
-                                                            })
-                                                        }}/>))}
+                                <div key={index} className={"d-flex align-items-center mb-2"}>
+                                    <div className={"w-100"}>
+                                        <Bootstrap.Form.Control rows={3} as={"textarea"}
+                                                                value={query}
+                                                                onChange={(e) => {
+                                                                    e.target.classList.remove('is-invalid');
+                                                                    this.setState(prev => {
+                                                                        prev.queries[index] = e.target.value;
+                                                                        return {queries: prev.queries};
+                                                                    })
+                                                                }}/>
+                                    </div>
+                                    <div className={"m-2"}>
+                                        <FontAwesomeIcon className="text-danger pointer" size={"lg"}
+                                                         icon={faTimesCircle}
+                                                         title={"Remove"}
+                                                         onClick={() => this.setState((prev) => {
+                                                             prev.queries.splice(index, 1);
+                                                             return {queries: prev.queries}
+                                                         })}/>
+                                    </div>
+                                </div>
+                            ))}
                             <AddRowButton length={this.state.queries.length} onClick={() => {
                                 this.setState(prev => ({queries: prev.queries.concat([""])}));
                             }}/>
@@ -913,15 +1193,30 @@ class Tabs extends React.Component {
                         </Bootstrap.Form.Label>
                         <Bootstrap.Col md={10}>
                             {this.state.documentAddresses.map((address, index) => (
-                                <Bootstrap.Form.Control key={index} className={"mb-2"}
-                                                        placeholder={"https://example.org/dataset.ttl"}
-                                                        value={address}
-                                                        onChange={(e) => {
-                                                            this.setState(prev => {
-                                                                prev.documentAddresses[index] = e.target.value;
-                                                                return {documentAddresses: prev.documentAddresses};
-                                                            })
-                                                        }}/>))}
+                                <div key={index} className={"d-flex align-items-center mb-2"}>
+                                    <div className={"w-100"}>
+                                        <Bootstrap.Form.Control
+                                            placeholder={"https://example.org/dataset.ttl"}
+                                            value={address}
+                                            onChange={(e) => {
+                                                e.target.classList.remove('is-invalid');
+                                                this.setState(prev => {
+                                                    prev.documentAddresses[index] = e.target.value;
+                                                    return {documentAddresses: prev.documentAddresses};
+                                                })
+                                            }}/>
+                                    </div>
+                                    <div className={"m-2"}>
+                                        <FontAwesomeIcon className="text-danger pointer" size={"lg"}
+                                                         icon={faTimesCircle}
+                                                         title={"Remove"}
+                                                         onClick={() => this.setState((prev) => {
+                                                             prev.documentAddresses.splice(index, 1);
+                                                             return {documentAddresses: prev.documentAddresses}
+                                                         })}/>
+                                    </div>
+                                </div>
+                            ))}
 
 
                             <AddRowButton length={this.state.documentAddresses.length} onClick={() => {
@@ -936,6 +1231,7 @@ class Tabs extends React.Component {
 
     renderCron() {
         let schedule = this.state.schedule;
+        let cronRegex = /(((\d+,)+\d+|(\d+(\/|-)\d+)|\d+|\*) ?)/g;
         return (
             <Bootstrap.Card className={"ml-5 mb-2"}>
                 <Bootstrap.Card.Body>
@@ -946,11 +1242,13 @@ class Tabs extends React.Component {
                                 type="text"
                                 name="second"
                                 value={schedule[0]}
+                                isInvalid={!schedule[0].match(cronRegex)}
                                 onChange={(e) => {
                                     schedule[0] = e.target.value;
                                     this.setState({schedule: schedule});
                                 }}
                             />
+                            {this.renderCronFeedback()}
                         </Bootstrap.Form.Group>
                         <Bootstrap.Form.Group as={Bootstrap.Col} md="2">
                             <Bootstrap.Form.Label>Minute</Bootstrap.Form.Label>
@@ -958,11 +1256,13 @@ class Tabs extends React.Component {
                                 type="text"
                                 name="minute"
                                 value={schedule[1]}
+                                isInvalid={!schedule[1].match(cronRegex)}
                                 onChange={(e) => {
                                     schedule[1] = e.target.value;
                                     this.setState({schedule: schedule});
                                 }}
                             />
+                            {this.renderCronFeedback()}
                         </Bootstrap.Form.Group>
                         <Bootstrap.Form.Group as={Bootstrap.Col} md="2">
                             <Bootstrap.Form.Label>Hour</Bootstrap.Form.Label>
@@ -970,11 +1270,13 @@ class Tabs extends React.Component {
                                 type="text"
                                 name="hour"
                                 value={schedule[2]}
+                                isInvalid={!schedule[2].match(cronRegex)}
                                 onChange={(e) => {
                                     schedule[2] = e.target.value;
                                     this.setState({schedule: schedule});
                                 }}
                             />
+                            {this.renderCronFeedback()}
                         </Bootstrap.Form.Group>
                         <Bootstrap.Form.Group as={Bootstrap.Col} md="2">
                             <Bootstrap.Form.Label>Day of month</Bootstrap.Form.Label>
@@ -982,11 +1284,13 @@ class Tabs extends React.Component {
                                 type="text"
                                 name="dayOfMonth"
                                 value={schedule[3]}
+                                isInvalid={!schedule[3].match(cronRegex)}
                                 onChange={(e) => {
                                     schedule[3] = e.target.value;
                                     this.setState({schedule: schedule});
                                 }}
                             />
+                            {this.renderCronFeedback()}
                         </Bootstrap.Form.Group>
                         <Bootstrap.Form.Group as={Bootstrap.Col} md="2">
                             <Bootstrap.Form.Label>Month</Bootstrap.Form.Label>
@@ -994,11 +1298,13 @@ class Tabs extends React.Component {
                                 type="text"
                                 name="month"
                                 value={schedule[4]}
+                                isInvalid={!schedule[4].match(cronRegex)}
                                 onChange={(e) => {
                                     schedule[4] = e.target.value;
                                     this.setState({schedule: schedule});
                                 }}
                             />
+                            {this.renderCronFeedback()}
                         </Bootstrap.Form.Group>
                         <Bootstrap.Form.Group as={Bootstrap.Col} md="2">
                             <Bootstrap.Form.Label>Day of week</Bootstrap.Form.Label>
@@ -1006,15 +1312,45 @@ class Tabs extends React.Component {
                                 type="text"
                                 name="dayOfWeek"
                                 value={schedule[5]}
+                                isInvalid={!schedule[5].match(cronRegex)}
                                 onChange={(e) => {
                                     schedule[5] = e.target.value;
                                     this.setState({schedule: schedule});
                                 }}
                             />
+                            {this.renderCronFeedback()}
                         </Bootstrap.Form.Group>
                     </Bootstrap.Form.Row>
                 </Bootstrap.Card.Body>
             </Bootstrap.Card>
+        )
+    }
+
+    renderCronFeedback() {
+        return (
+            <Bootstrap.Form.Control.Feedback tooltip type="invalid">
+                Use cron notation:
+                <Bootstrap.Table className={"cronList"} borderless size={"sm"}>
+                    <tbody>
+                    <tr>
+                        <th>*</th>
+                        <td className={"ml-1"}>any value</td>
+                    </tr>
+                    <tr>
+                        <th>,</th>
+                        <td>value list separator</td>
+                    </tr>
+                    <tr>
+                        <th>-</th>
+                        <td>range of values</td>
+                    </tr>
+                    <tr>
+                        <th>/</th>
+                        <td>step values</td>
+                    </tr>
+                    </tbody>
+                </Bootstrap.Table>
+            </Bootstrap.Form.Control.Feedback>
         )
     }
 }
