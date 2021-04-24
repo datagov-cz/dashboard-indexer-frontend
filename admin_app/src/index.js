@@ -7,18 +7,46 @@ import {BrowserRouter as Router, Route} from "react-router-dom";
 import React from "react";
 import Edit from "./Edit";
 import NavBar from "./NavBar";
+import Toast from "./Toast";
 
+class App extends React.Component {
+    constructor(props) {
+        super(props);
+        this.state = {
+            alerts: []
+        }
+    }
+
+    addAlert = (alertObj) => {
+        this.setState((prev) => ({
+            alerts: prev.alerts.concat([alertObj])
+        }))
+    }
+
+    render() {
+        return (
+            <Router>
+                <NavBar/>
+                <Route exact path={"/"}>
+                    <Home addAlert={this.addAlert}/>
+                </Route>
+                <Route exact path={["/index/:name", "/index"]} children={<Edit addAlert={this.addAlert}/>}/>
+                <div className={"tousts p-4 mh-100  overflow-auto"}>
+                    {this.state.alerts.map((alert, index) => <Toast key={index} message={alert.message}
+                                                                    variant={alert.variant}
+                                                                    title={alert.title}
+                                                                    durationSec={alert.durationSec}/>
+                    )}
+                </div>
+            </Router>
+        )
+    }
+}
 
 // ========================================
 
 ReactDOM.render(
-    <Router>
-        <NavBar/>
-        <Route exact path={"/"}>
-            <Home/>
-        </Route>
-        <Route exact path={["/index/:name","/index"]} children={<Edit/>}/>
-    </Router>,
+    <App/>,
     document.getElementById('root')
 )
 ;

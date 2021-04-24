@@ -4,7 +4,7 @@ import "./Edit.css";
 import {withRouter} from "react-router-dom";
 import axios from "axios";
 import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
-import {faTimes, faTimesCircle} from "@fortawesome/free-solid-svg-icons";
+import {faSave, faTimes, faTimesCircle, faUndoAlt} from "@fortawesome/free-solid-svg-icons";
 
 const api = axios.create({baseURL: 'http://localhost:8080/api/'});
 
@@ -36,7 +36,7 @@ class Edit extends React.Component {
                 </Bootstrap.Row>
                 <Bootstrap.Row>
                     <Bootstrap.Col>
-                        <Tabs match={this.props.match} history={this.props.history}
+                        <Tabs addAlert={this.props.addAlert} match={this.props.match} history={this.props.history}
                               name={this.props.match.params.name}/>
                     </Bootstrap.Col>
                 </Bootstrap.Row>
@@ -77,19 +77,33 @@ class Tabs extends React.Component {
             minRawReq: false,
             askToConvertRawToVars: false,
         };
-        if (this.props.name) api.get('config/' + this.props.name).then((response) => {
+        if (this.props.name) api.get('configs/' + this.props.name).then((response) => {
             this.setState({config: response.data}, () =>
                 this.setState({configRaw: JSON.stringify(this.state.config, null, 7)}, () => {
                         this.setStateFromConfig();
                     }
                 )
             );
+        }).catch((error) => {
+            this.props.addAlert({
+                variant: "danger",
+                title: "Get configs request error",
+                message: error,
+                durationSec: 300
+            })
         })
 
     }
 
     sendConfig(address, config) {
-        api.put(address, config);
+        api.put(address, config).then(() => this.props.history.push("/")).catch((error) => {
+            this.props.addAlert({
+                variant: "danger",
+                title: "Save config request error",
+                message: error,
+                durationSec: 300
+            })
+        });
     }
 
     createSaveButtons() {
@@ -98,13 +112,13 @@ class Tabs extends React.Component {
                 <Bootstrap.Button type="submit" variant={"success"}
                                   className={'mr-3'}
                                   name={"save"}
-                                  value={"config"}
-                >Save</Bootstrap.Button>
+                                  value={"configs"}
+                ><FontAwesomeIcon icon={faSave}/> Save</Bootstrap.Button>
                 <Bootstrap.Button type="submit" variant={"success"}
                                   className={'mr-3'}
                                   name={"save"}
                                   value={"configAndIndex"}
-                >Save and index</Bootstrap.Button>
+                ><FontAwesomeIcon icon={faSave}/> Save and index</Bootstrap.Button>
             </div>
         )
     }
@@ -129,7 +143,7 @@ class Tabs extends React.Component {
             language: this.state.language
         })
         if (this.state.URIDescription !== undefined && this.state.URIDescription.length > 0) Object.assign(eeaRDF, {
-            uriDescription: this.state.URIDescription//TODO: test
+            uriDescription: this.state.URIDescription
         })
         if (this.state.filtrationListType !== "none" && this.state.filtrationList !== undefined && this.state.filtrationList.length > 0) Object.assign(eeaRDF, {
             proplist: this.state.filtrationList,
@@ -257,8 +271,18 @@ class Tabs extends React.Component {
 
     convertConfigRawToVars() {
         this.setState({askToConvertRawToVars: false})
-        //TODO: catch
-        let config = JSON.parse(this.state.configRaw);
+        let config;
+        try {
+            config = JSON.parse(this.state.configRaw);
+        } catch (e) {
+            this.props.addAlert({
+                variant: "danger",
+                title: "Raw config error",
+                message: "Could not parse as JSON. Check brackets and JSON notation.",
+                durationSec: 30
+            })
+            return;
+        }
         this.setState({readOnly: true});
         this.setState({config: config}, () =>
             this.setStateFromConfig()
@@ -268,10 +292,10 @@ class Tabs extends React.Component {
     render() {
         return (<>
                 {this.createSaveButtons()}
-                <Bootstrap.Tabs defaultActiveKey="interactive" onSelect={(e) => {
-                    if (e === "raw") this.convertVarsToConfig(); else this.showPopupForConvertConfigRawToVars();
+                <Bootstrap.Tabs defaultActiveKey="interactive" onSelect={(name) => {
+                    if (name === "raw") this.convertVarsToConfig(); else this.showPopupForConvertConfigRawToVars();
                 }}>
-                    <Bootstrap.Tab eventKey="interactive" title="Interactive">
+                    <Bootstrap.Tab eventKey="interactive" title="Interactive" disabled={!this.state.readOnly}>
                         <Bootstrap.Card className={"border-top-0"}>
                             <Bootstrap.Card.Body>
                                 {this.renderInteractive()}
@@ -294,11 +318,21 @@ class Tabs extends React.Component {
         return (
             <Bootstrap.Form method={"post"} onSubmit={(e) => this.checkValidity(e)}>
                 {this.createSaveButtons()}
-                <Bootstrap.Form.Check type="checkbox" label="Read only" checked={this.state.readOnly}
-                                      onChange={(event) => {
-                                          if (event.target.checked) this.showPopupForConvertConfigRawToVars();
-                                          else this.setState({readOnly: false});
-                                      }}/>
+                <Bootstrap.Row>
+                    <Bootstrap.Col className={"d-flex align-items-center"}>
+                        <Bootstrap.Form.Check className={"m-2"} type="checkbox" label="Read only"
+                                              checked={this.state.readOnly}
+                                              onChange={(event) => {
+                                                  if (event.target.checked) this.showPopupForConvertConfigRawToVars();
+                                                  else this.setState({readOnly: false});
+                                              }}/>
+                    </Bootstrap.Col>
+                    <Bootstrap.Col className={"d-flex justify-content-end"}>
+                        <Bootstrap.Button className={"m-2"} disabled={this.state.readOnly} variant={"warning"}
+                                          onClick={() => this.setState({configRaw: JSON.stringify(this.state.config, null, 7)})}>
+                            Revert changes <FontAwesomeIcon icon={faUndoAlt}/></Bootstrap.Button>
+                    </Bootstrap.Col>
+                </Bootstrap.Row>
                 <Bootstrap.Form.Control rows={25} as={"textarea"} readOnly={this.state.readOnly}
                                         value={this.state.configRaw}
                                         onChange={(e) => this.setState({configRaw: e.target.value})}
@@ -326,14 +360,23 @@ class Tabs extends React.Component {
         e.preventDefault();
         e.stopPropagation();
         if (!this.state.readOnly) {
-            //TODO: catch
-            let config = JSON.parse(this.state.configRaw);
+            let config;
+            try {
+                config = JSON.parse(this.state.configRaw);
+            } catch (e) {
+                this.props.addAlert({
+                    variant: "danger",
+                    title: "Raw config error",
+                    message: "Could not parse as JSON. Check brackets and JSON notation.",
+                    durationSec: 30
+                })
+                return;
+            }
             if (config.config === undefined || config.config.index === undefined || config.config.index.index === undefined || config.config.index.index.split("").length < 1) {
                 this.setState({minRawReq: true});
                 return;
             }
             this.sendConfig(e.nativeEvent.submitter.value, config);
-            this.props.history.push("/");
             return;
         }
         this.checkEmpty(e);
@@ -344,7 +387,6 @@ class Tabs extends React.Component {
         let firstProblemInput = e.target.querySelector('.is-invalid');
         if (firstProblemInput === null) {
             this.sendConfig(e.nativeEvent.submitter.value, this.convertVarsToConfig());
-            this.props.history.push("/");
         } else {
             firstProblemInput.focus();
         }
@@ -398,7 +440,8 @@ class Tabs extends React.Component {
                 </Bootstrap.Modal.Header>
                 <Bootstrap.Modal.Body>
                     <p>
-                        Index name is required, can't start with '@temp-' and can't contain '{'\\, /, ?, ", <, >, |'}'.
+                        Index name is required. Name can't start with '@temp-' and can't contain
+                        '{'\\, /, ?, ", <, >, |'}'.
                     </p>
                     <pre>Example:{' \n'}
 

@@ -5,7 +5,7 @@ import axios from 'axios';
 import {Link} from 'react-router-dom';
 import {BarChart, Bar, CartesianGrid, Legend, Tooltip, XAxis, YAxis, ResponsiveContainer} from "recharts";
 import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
-import {faPencilAlt, faPlay, faStop, faTrash} from '@fortawesome/free-solid-svg-icons';
+import {faCircle, faPencilAlt, faPlay, faStop, faTrash} from '@fortawesome/free-solid-svg-icons';
 
 const api = axios.create({baseURL: 'http://localhost:8080/api/'});
 
@@ -51,8 +51,8 @@ class UpdateRecord extends React.Component {
 }
 
 class IndexRow extends React.Component {
-    constructor() {
-        super();
+    constructor(props, context) {
+        super(props, context);
         this.state = {
             open: false
         }
@@ -111,14 +111,21 @@ class IndexRow extends React.Component {
                                     </Link>
                                 </div>
                                 <div className={"m-auto"}
-                                     onClick={() => api.post('config/' + this.props.data.name + (this.props.running == null ? '/start' : '/stop'))}>
+                                     onClick={() => api.post('configs/' + this.props.data.name + (this.props.running == null ? '/start' : '/stop')).catch((error) => {
+                                         this.props.addAlert({
+                                             variant: "danger",
+                                             title: "Start/stop request error",
+                                             message: error,
+                                             durationSec: 300
+                                         })
+                                     })}>
                                     {this.props.running == null ?
                                         <FontAwesomeIcon className="text-dark pointer" icon={faPlay} title={"Index"}/> :
                                         <FontAwesomeIcon className="text-dark pointer" icon={faStop}
                                                          title={"Stop indexation"}/>}
                                 </div>
                                 <div className={"m-auto"}
-                                     onClick={() => api.delete('config/' + this.props.data.name)}
+                                     onClick={() => this.props.showDeletePopup(this.props.data.name, this.props.data.dashboards, this.props.data.lastSuccessAndLastTenUpdateRecords[0] != null)}
                                 >
                                     <FontAwesomeIcon className="text-danger pointer" icon={faTrash} title={"Delete"}/>
                                 </div>
@@ -206,12 +213,55 @@ class IndexTable extends React.Component {
         this.state = {
             configs: Array(1),
             running: {},
-            configsInterval: setInterval(() => api.get('configs').then((response) => this.setState({configs: response.data})), 10 * 1000),
-            runningInterval: setInterval(() => api.get('running').then((response) => this.setState({running: response.data})), 1000)
+            configsInterval: setInterval(() => this.loadIndexes(), 10 * 1000),
+            runningInterval: setInterval(() => this.loadRunningIndexes(), 1000),
+            deletePopupShow: false
         }
-        api.get('kibanaHost').then((response) => this.setState({dashBoardAddress: response.data + "/app/dashboards#/view/"}));
-        api.get('configs').then((response) => this.setState({configs: response.data}));
-        api.get('running').then((response) => this.setState({running: response.data}));
+        api.get('kibanaHost').then((response) => this.setState({dashBoardAddress: response.data + "/app/dashboards#/view/"})).catch(() => {
+            clearInterval(this.state.runningInterval);
+            this.setState({runningInterval: false});
+        });
+        this.loadIndexes();
+    }
+
+    loadIndexes() {
+        api.get('configs').then((response) => {
+            this.setState({
+                configs: response.data,
+            })
+            if (!this.state.runningInterval) {
+                this.props.addAlert({
+                    variant: "success",
+                    title: "Reconnected",
+                    message: "Reconnected to api server",
+                    durationSec: 5
+                })
+                this.setState({
+                    runningInterval: setInterval(() => this.loadRunningIndexes(), 1000)
+                })
+                api.get('kibanaHost').then((response) => this.setState({dashBoardAddress: response.data + "/app/dashboards#/view/"})).catch(() => {
+                    clearInterval(this.state.runningInterval);
+                    this.setState({runningInterval: false});
+                });
+            }
+
+        }).catch(() => {
+            this.props.addAlert({
+                variant: "danger",
+                title: "Connection lost",
+                message: "Connection to api server lost",
+                durationSec: 9
+            })
+            clearInterval(this.state.runningInterval);
+            this.setState({runningInterval: false});
+        })
+    }
+
+    loadRunningIndexes() {
+        api.get('running').then((response) => this.setState({running: response.data})).catch(() => {
+            clearInterval(this.state.runningInterval);
+            this.setState({runningInterval: false});
+        })
     }
 
     componentWillUnmount() {
@@ -219,31 +269,107 @@ class IndexTable extends React.Component {
         clearInterval(this.state.runningInterval);
     }
 
+    showDeletePopup(index, dashboards, successFullRun) {
+        this.setState({
+            deletePopupIndexName: index,
+            deletePopupDashboards: dashboards,
+            deletePopupSuccessFullRun: successFullRun,
+            deletePopupDeleteDataCheck: false,
+            deletePopupShow: true
+        })
+    }
+
     renderRow(indexInfo, rowNumber) {
         return (
-            <IndexRow key={indexInfo.name} rowNumber={rowNumber} data={indexInfo} kibana={this.state.dashBoardAddress}
+            <IndexRow key={indexInfo.name} showDeletePopup={this.showDeletePopup.bind(this)}
+                      addAlert={this.props.addAlert}
+                      rowNumber={rowNumber} data={indexInfo} kibana={this.state.dashBoardAddress}
                       running={this.state.running[indexInfo.name]}/>
         );
     }
 
+    renderDeletePopup() {
+        return (
+            <Bootstrap.Modal centered show={this.state.deletePopupShow}>
+                <Bootstrap.Modal.Header className={"text-light bg-danger"}>
+                    <Bootstrap.Modal.Title>
+                        {"Deleting index: " + this.state.deletePopupIndexName}
+                    </Bootstrap.Modal.Title>
+                </Bootstrap.Modal.Header>
+                <Bootstrap.Modal.Body className={"text-light bg-danger"}>
+                    {(this.state.deletePopupDashboards && Object.keys(this.state.deletePopupDashboards).length > 0 && this.state.deletePopupSuccessFullRun) ? <>
+                        Deleting index '{this.state.deletePopupIndexName}' will affect these dashboards:
+                        <br/>
+                        <ul>
+                            {Object.keys(this.state.deletePopupDashboards).map(dashboardName =>
+                                <li key={dashboardName}>{this.state.deletePopupDashboards[dashboardName]}</li>)}
+                        </ul>
+                    </> : ""}
+                    Are you sure you want to delete this index?
+                </Bootstrap.Modal.Body>
+                <Bootstrap.Modal.Footer
+                    className={this.state.deletePopupSuccessFullRun ? "justify-content-between" : ""}>
+                    {this.state.deletePopupSuccessFullRun ?
+                        <Bootstrap.Form.Switch label={'Also delete indexed data'}
+                                               checked={this.state.deletePopupDeleteDataCheck}
+                                               id="deletePopupDeleteDataCheck"
+                                               onChange={(e) => this.setState({deletePopupDeleteDataCheck: e.target.checked})}/> : ""}
+                    <div>
+                        <Bootstrap.Button className={"mr-2"} variant="secondary"
+                                          onClick={() => this.setState({deletePopupShow: false})}>
+                            No
+                        </Bootstrap.Button>
+                        <Bootstrap.Button variant="danger" onClick={() => {
+                            api.delete('configs/' + this.state.deletePopupIndexName, {
+                                params: {
+                                    deleteData: this.state.deletePopupDeleteDataCheck
+                                }
+                            }).then(() => this.loadIndexes()).catch((error) => this.props.addAlert({
+                                variant: "danger",
+                                title: "Delete request error",
+                                message: error,
+                                durationSec: 300
+                            }))
+                            this.setState({deletePopupShow: false})
+                        }}>
+                            Yes, delete
+                        </Bootstrap.Button>
+                    </div>
+                </Bootstrap.Modal.Footer>
+            </Bootstrap.Modal>)
+    }
+
+    renderStatus() {
+        return (
+            <div className={"float-right"}>
+                Status: {this.state.runningInterval ?
+                <FontAwesomeIcon className={"text-success"} icon={faCircle} title={"on-line"}/> :
+                <Bootstrap.Spinner size="sm" variant={"danger"} animation={"grow"}/>}
+            </div>
+        )
+    }
+
     render() {
         return (
-            <Bootstrap.Accordion>
-                <Bootstrap.Table responsive="lg" bordered>
-                    <thead className={"thead-dark"}>
-                    <tr>
-                        <th scope="col">Index name</th>
-                        <th scope="col">Status</th>
-                        <th scope="col">Last update</th>
-                        <th scope="col">Used in</th>
-                        <th scope="col">Controls</th>
-                    </tr>
-                    </thead>
-                    {this.state.configs.map((indexInfo, rowNumber) => this.renderRow(indexInfo, rowNumber))}
-                </Bootstrap.Table>
-            </Bootstrap.Accordion>
+            <>
+                {this.renderStatus()}
+                {this.renderDeletePopup()}
+                <Bootstrap.Accordion>
+                    <Bootstrap.Table responsive="lg" bordered>
+                        <thead className={"thead-dark"}>
+                        <tr>
+                            <th scope="col">Index name</th>
+                            <th scope="col">Status</th>
+                            <th scope="col">Last update</th>
+                            <th scope="col">Used in</th>
+                            <th scope="col">Controls</th>
+                        </tr>
+                        </thead>
+                        {this.state.configs.map((indexInfo, rowNumber) => this.renderRow(indexInfo, rowNumber))}
+                    </Bootstrap.Table>
+                </Bootstrap.Accordion>
+            </>
         )
-            ;
     }
 }
 
@@ -260,7 +386,7 @@ class Home extends React.Component {
                 </Bootstrap.Row>
                 <Bootstrap.Row>
                     <Bootstrap.Col>
-                        <IndexTable/>
+                        <IndexTable {...this.props}/>
                     </Bootstrap.Col>
                 </Bootstrap.Row>
             </Bootstrap.Container>
