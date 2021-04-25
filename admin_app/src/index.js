@@ -2,10 +2,10 @@ import ReactDOM from 'react-dom';
 import './index.css';
 import 'bootstrap/dist/css/bootstrap.min.css'
 import reportWebVitals from './reportWebVitals';
-import Home from "./Home";
+import Home from "./pages/home/Home";
 import {BrowserRouter as Router, Route} from "react-router-dom";
 import React from "react";
-import Edit from "./Edit";
+import Edit from "./pages/edit/Edit";
 import NavBar from "./NavBar";
 import Toast from "./Toast";
 
@@ -31,7 +31,7 @@ class App extends React.Component {
                     <Home addAlert={this.addAlert}/>
                 </Route>
                 <Route exact path={["/index/:name", "/index"]} children={<Edit addAlert={this.addAlert}/>}/>
-                <div className={"tousts p-4 mh-100  overflow-auto"}>
+                <div className={"toasts p-4 mh-100  overflow-auto"}>
                     {this.state.alerts.map((alert, index) => <Toast key={index} message={alert.message}
                                                                     variant={alert.variant}
                                                                     title={alert.title}
