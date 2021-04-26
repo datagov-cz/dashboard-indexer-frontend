@@ -9,7 +9,7 @@ class IndexTable extends React.Component {
     constructor(props) {
         super(props);
         this.state = {
-            configs: Array(1),
+            configs: Array(0),
             running: {},
             configsInterval: setInterval(() => this.loadIndexes(), 10 * 1000),
             runningInterval: setInterval(() => this.loadRunningIndexes(), 1000),
@@ -43,10 +43,22 @@ class IndexTable extends React.Component {
                             <th scope="col">Controls</th>
                         </tr>
                         </thead>
-                        {this.state.configs.map((indexInfo, rowNumber) => this.renderRow(indexInfo, rowNumber))}
+                        {console.log(this.state.configs.length )}
+                        {this.state.configs.length > 0 ? this.state.configs.map((indexInfo, rowNumber) => this.renderRow(indexInfo, rowNumber))
+                            : this.renderNoConfigsRow()}
                     </Bootstrap.Table>
                 </Bootstrap.Accordion>
             </>
+        )
+    }
+
+    renderNoConfigsRow() {
+        return (
+            <tbody>
+            <tr>
+                <td colSpan={5} className={"text-center"}><h3 className={"m-0"}><Bootstrap.Badge variant={"secondary"}>No index configs</Bootstrap.Badge></h3></td>
+            </tr>
+            </tbody>
         )
     }
 
@@ -85,7 +97,7 @@ class IndexTable extends React.Component {
 
     loadRunningIndexes() {
         api.get('running').then((response) => {
-            if(!Object.keys(this.state.running).every(v=>Object.keys(response.data).includes(v))) this.loadIndexes();
+            if (!Object.keys(this.state.running).every(v => Object.keys(response.data).includes(v))) this.loadIndexes();
             this.setState({running: response.data});
         }).catch(() => {
             clearInterval(this.state.runningInterval);
@@ -173,4 +185,5 @@ class IndexTable extends React.Component {
         )
     }
 }
+
 export default IndexTable;
