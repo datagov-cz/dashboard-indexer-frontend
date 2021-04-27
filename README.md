@@ -2,6 +2,7 @@
 
 Build react application:
 
+    npm install
 	npm run build
 
 ## Deploy

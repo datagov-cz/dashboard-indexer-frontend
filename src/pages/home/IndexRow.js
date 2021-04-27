@@ -101,7 +101,7 @@ class IndexRow extends React.Component {
             <tbody className={"border-0"}>
             <tr className={rowColor}>
                 <td colSpan={5} className={"p-0 m-0 border-0"}>
-                    {this.props.data.lastSuccessAndLastTenUpdateRecords[0] ?
+                    {this.props.data.lastSuccessAndLastTenUpdateRecords.length > 1 ?
                         <Bootstrap.Accordion.Collapse eventKey={this.props.data.name}
                                                       onExiting={() => this.setState({open: false})}
                                                       onEntered={() => this.setState({open: true})}>
