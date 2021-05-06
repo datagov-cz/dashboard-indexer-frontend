@@ -24,14 +24,14 @@ class InteractiveTab extends React.Component {
                                                         readOnly={this.props.parent.props.match.params.name}
                                                         onChange={(e) => {
                                                             e.target.classList.remove('is-invalid');
-                                                            if (e.target.value.startsWith("@temp-") || e.target.value.toLowerCase().split("").some(char => "\\/?\"<>|".indexOf(char) !== -1))
+                                                            if (e.target.value.startsWith("@temp-") || e.target.value.toLowerCase().split("").some(char => "\\/?\"<>| ".indexOf(char) !== -1))
                                                                 e.target.classList.add('is-invalid');
                                                             this.props.parent.setState({name: e.target.value.toLowerCase()});
                                                         }}
                                 />
                                 <Bootstrap.Form.Control.Feedback type={"invalid"}>Field is required. Index name can't
                                     start with '@temp-' and can't contain
-                                    '{'\\, /, ?, ", <, >, |'}'.</Bootstrap.Form.Control.Feedback>
+                                    '{'\\, /, ?, ", <, >, |, space'}'.</Bootstrap.Form.Control.Feedback>
                             </Bootstrap.Col>
                         </Bootstrap.Form.Group>
                         <fieldset>
