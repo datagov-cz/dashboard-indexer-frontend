@@ -84,7 +84,10 @@ class IndexTable extends React.Component {
     }
 
     loadRunningIndexes() {
-        api.get('running').then((response) => this.setState({running: response.data})).catch(() => {
+        api.get('running').then((response) => {
+            if(!Object.keys(this.state.running).every(v=>Object.keys(response.data).includes(v))) this.loadIndexes();
+            this.setState({running: response.data});
+        }).catch(() => {
             clearInterval(this.state.runningInterval);
             this.setState({runningInterval: false});
         })
