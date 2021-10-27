@@ -3,11 +3,11 @@ import React from "react";
 import Cron from "./Cron";
 import Advanced from "./Advanced";
 import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
-import {faMinusCircle, faTimes} from "@fortawesome/free-solid-svg-icons";
+import {faMinusCircle} from "@fortawesome/free-solid-svg-icons";
 import AddRowButton from "./AddRowButton";
 import SingleInput from "./SingleInput";
 
-class InteractiveTab extends React.Component{
+class InteractiveTab extends React.Component {
     render() {
         return (
             <Bootstrap.Form method={"post"} onSubmit={(e) => this.props.parent.checkValidity(e)}>
@@ -62,7 +62,9 @@ class InteractiveTab extends React.Component{
                             </Bootstrap.Form.Group>
                         </fieldset>
                         <Bootstrap.Collapse in={this.props.parent.state.automatic}>
-                            <Cron parent={this.props.parent}/>
+                            <div>
+                                <Cron parent={this.props.parent}/>
+                            </div>
                         </Bootstrap.Collapse>
                         <fieldset>
                             <Bootstrap.Form.Group as={Bootstrap.Row}>
@@ -231,7 +233,8 @@ class InteractiveTab extends React.Component{
                         <Bootstrap.Form.Label column md={2}>
                             Addresses:
                         </Bootstrap.Form.Label>
-                        <SingleInput parent={this.props.parent} data={this.props.parent.state.documentAddresses} dataName={"documentAddresses"}
+                        <SingleInput parent={this.props.parent} data={this.props.parent.state.documentAddresses}
+                                     dataName={"documentAddresses"}
                                      placeholder={"https://example.org/dataset.ttl"}/>
                     </Bootstrap.Form.Group>
                 </Bootstrap.Card.Body>
@@ -239,4 +242,5 @@ class InteractiveTab extends React.Component{
         )
     }
 }
+
 export default InteractiveTab;

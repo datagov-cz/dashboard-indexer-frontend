@@ -1,7 +1,5 @@
 ## Build
 
-**Execute in directory */admin_app***
-
 Build react application:
 
 	npm run build

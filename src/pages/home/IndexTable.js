@@ -43,7 +43,6 @@ class IndexTable extends React.Component {
                             <th scope="col">Controls</th>
                         </tr>
                         </thead>
-                        {console.log(this.state.configs.length )}
                         {this.state.configs.length > 0 ? this.state.configs.map((indexInfo, rowNumber) => this.renderRow(indexInfo, rowNumber))
                             : this.renderNoConfigsRow()}
                     </Bootstrap.Table>
