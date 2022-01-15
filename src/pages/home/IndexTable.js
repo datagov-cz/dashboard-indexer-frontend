@@ -27,7 +27,7 @@ class IndexTable extends React.Component {
         api.get('/export/configs').then((response) => {
             let element = document.createElement("a");
             let data = JSON.stringify(response.data, null, 4)
-            let file = new Blob([data], {type: 'application/json'});
+            let file = new Blob([data], {type: 'application/json;charset=UTF-8'});
             element.href = URL.createObjectURL(file);
             element.download = "indexer-configs.conf";
             document.body.appendChild(element);
@@ -39,9 +39,9 @@ class IndexTable extends React.Component {
     importConfigs = (event) => {
         event.stopPropagation();
         event.preventDefault();
-        let file = event.target.files;
+        let files = event.target.files;
         let reader = new FileReader();
-        reader.readAsBinaryString(file[0]);
+        reader.readAsText(files[0]);
         reader.onload = (e) => {
             let data = [];
             for (const conf of JSON.parse(e.target.result)) {
