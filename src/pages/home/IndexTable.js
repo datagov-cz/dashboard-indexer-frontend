@@ -1,9 +1,10 @@
 import React from "react";
 import * as Bootstrap from "react-bootstrap";
 import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
-import {faCircle} from "@fortawesome/free-solid-svg-icons";
+import {faCircle, faDownload, faUpload} from "@fortawesome/free-solid-svg-icons";
 import IndexRow from "./IndexRow";
 import api from "../../settings";
+
 
 class IndexTable extends React.Component {
     constructor(props) {
@@ -20,6 +21,52 @@ class IndexTable extends React.Component {
             this.setState({runningInterval: false});
         });
         this.loadIndexes();
+    }
+
+    exportConfigs = () => {
+        api.get('/export/configs').then((response) => {
+            let element = document.createElement("a");
+            let data = JSON.stringify(response.data, null, 4)
+            let file = new Blob([data], {type: 'application/json'});
+            element.href = URL.createObjectURL(file);
+            element.download = "indexer-configs.conf";
+            document.body.appendChild(element);
+            element.click();
+            document.body.removeChild(element);
+        });
+    }
+
+    importConfigs = (event) => {
+        event.stopPropagation();
+        event.preventDefault();
+        let file = event.target.files;
+        let reader = new FileReader();
+        reader.readAsBinaryString(file[0]);
+        reader.onload = (e) => {
+            let data = [];
+            for (const conf of JSON.parse(e.target.result)) {
+                data.push(JSON.stringify(conf));
+            }
+            api.post('/import/configs', data).then((res) => {
+                this.loadIndexes();
+                event.target.value = null;
+                this.props.addAlert({
+                    variant: "success",
+                    title: "Import successful",
+                    message: "Successful import:\n\tnew: " + res.data[0] +
+                        ",\n\tchanged: " + res.data[1],
+                    durationSec: 9
+                })
+            }).catch((e) => {
+                event.target.value = null;
+                this.props.addAlert({
+                    variant: "danger",
+                    title: "Import failed",
+                    message: "Import failed. " + e.message,
+                    durationSec: 20
+                })
+            });
+        }
     }
 
     componentWillUnmount() {
@@ -55,7 +102,8 @@ class IndexTable extends React.Component {
         return (
             <tbody>
             <tr>
-                <td colSpan={5} className={"text-center"}><h3 className={"m-0"}><Bootstrap.Badge variant={"secondary"}>No index configs</Bootstrap.Badge></h3></td>
+                <td colSpan={5} className={"text-center"}><h3 className={"m-0"}><Bootstrap.Badge variant={"secondary"}>No
+                    index configs</Bootstrap.Badge></h3></td>
             </tr>
             </tbody>
         )
@@ -177,9 +225,19 @@ class IndexTable extends React.Component {
     renderStatus() {
         return (
             <div className={"float-right"}>
-                Status: {this.state.runningInterval ?
-                <FontAwesomeIcon className={"text-success"} icon={faCircle} title={"on-line"}/> :
-                <Bootstrap.Spinner size="sm" variant={"danger"} animation={"grow"}/>}
+                <div className={"float-right"}>
+                    Status: {this.state.runningInterval ?
+                    <FontAwesomeIcon className={"text-success"} icon={faCircle} title={"Online"}/> :
+                    <Bootstrap.Spinner size="sm" variant={"danger"} animation={"grow"} title={"Offline"}/>}
+                </div>
+                <div className={"float-right mr-3"}>
+                    <FontAwesomeIcon className={"mr-2 cursor-pointer"} icon={faDownload}
+                                     title={"Export configs"} onClick={this.exportConfigs}/>
+                    <FontAwesomeIcon className={"cursor-pointer"} icon={faUpload} title={"Import configs"}
+                                     onClick={() => this.uploadElem.click()}/>
+                    <input className={"d-none"} type='file' ref={(ref) => this.uploadElem = ref}
+                           onChange={this.importConfigs}/>
+                </div>
             </div>
         )
     }
