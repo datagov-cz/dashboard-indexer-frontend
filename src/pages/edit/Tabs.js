@@ -12,6 +12,7 @@ class Tabs extends React.Component {
         super(props, context);
         this.state = {
             name: "",
+            incrementally: false,
             schedule: "0 0 9 * * *".split(" "),
             automatic: true,
             documents: false,
@@ -159,6 +160,7 @@ class Tabs extends React.Component {
         }
 
         let config = {
+            incrementally: this.state.incrementally,
             schedule: {
                 schedule: this.state.schedule.join(" "),
                 automatic: this.state.automatic
@@ -183,6 +185,7 @@ class Tabs extends React.Component {
 
     resetStates(performAfter) {
         this.setState({
+            incrementally: false,
             automatic: true,
             documents: false,
             documentAddresses: [],//array
@@ -208,6 +211,9 @@ class Tabs extends React.Component {
     setStateFromConfig() {
         this.resetStates(() => {
             if (this.state.config === {} || this.state.config === undefined) return;
+            if (this.state.config.incrementally !== undefined) {
+                this.setState({incrementally: this.state.config.incrementally});
+            }
             if (this.state.config.schedule) {
                 if (this.state.config.schedule.schedule) this.setState({schedule: this.state.config.schedule.schedule.split(" ")});
                 if (this.state.config.schedule.automatic !== undefined) this.setState({automatic: this.state.config.schedule.automatic});

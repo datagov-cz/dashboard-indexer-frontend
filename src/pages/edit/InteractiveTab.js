@@ -34,6 +34,24 @@ class InteractiveTab extends React.Component {
                                     '{'\\, /, ?, ", <, >, |, space'}'.</Bootstrap.Form.Control.Feedback>
                             </Bootstrap.Col>
                         </Bootstrap.Form.Group>
+                        <Bootstrap.Form.Group as={Bootstrap.Row}>
+                            <Bootstrap.Form.Label as="legend" column md={2}>
+                                Index incrementally:
+                            </Bootstrap.Form.Label>
+                            <Bootstrap.Col className={"align-items-center d-flex"} md={10}>
+                                <Bootstrap.Form.Check
+                                    inline
+                                    type="switch"
+                                    label=""
+                                    name="indexIncrementallyCheck"
+                                    id="indexIncrementallyCheck"
+                                    checked={this.props.parent.state.incrementally}
+                                    onChange={(e) => {
+                                        this.props.parent.setState({incrementally: e.target.checked})
+                                    }}
+                                />
+                            </Bootstrap.Col>
+                        </Bootstrap.Form.Group>
                         <fieldset>
                             <Bootstrap.Form.Group as={Bootstrap.Row}>
                                 <Bootstrap.Form.Label as="legend" column md={2}>
@@ -193,7 +211,7 @@ class InteractiveTab extends React.Component {
                             {this.props.parent.state.queries.map((query, index) => (
                                 <div key={index} className={"d-flex align-items-center mb-2"}>
                                     <div className={"w-100"}>
-                                        <Bootstrap.Form.Control rows={3} as={"textarea"}
+                                        <Bootstrap.Form.Control rows={10} as={"textarea"}
                                                                 value={query}
                                                                 onChange={(e) => {
                                                                     e.target.classList.remove('is-invalid');
