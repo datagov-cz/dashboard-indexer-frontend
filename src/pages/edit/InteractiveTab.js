@@ -20,15 +20,25 @@ class InteractiveTab extends React.Component {
                                 Index name:
                             </Bootstrap.Form.Label>
                             <Bootstrap.Col md={10}>
-                                <Bootstrap.Form.Control placeholder="index-name" value={this.props.parent.state.name}
-                                                        readOnly={this.props.parent.props.match.params.name}
-                                                        onChange={(e) => {
-                                                            e.target.classList.remove('is-invalid');
-                                                            if (e.target.value.startsWith("@temp-") || e.target.value.toLowerCase().split("").some(char => "\\/?\"<>| ".indexOf(char) !== -1))
-                                                                e.target.classList.add('is-invalid');
-                                                            this.props.parent.setState({name: e.target.value.toLowerCase()});
-                                                        }}
-                                />
+                                <Bootstrap.InputGroup>
+                                    <Bootstrap.FormControl placeholder="index-name"
+                                                           value={this.props.parent.state.name}
+                                                           readOnly={this.props.parent.props.match.params.name}
+                                                           onChange={(e) => {
+                                                               e.target.classList.remove('is-invalid');
+                                                               if (e.target.value.startsWith("@temp-") || e.target.value.toLowerCase().split("").some(char => "\\/?\"<>| ".indexOf(char) !== -1))
+                                                                   e.target.classList.add('is-invalid');
+                                                               this.props.parent.setState({name: e.target.value.toLowerCase()});
+                                                           }}
+                                    />
+                                    <Bootstrap.InputGroup.Append>
+                                        <Bootstrap.Button variant="outline-secondary"
+                                                          //todo: show pop-up to rename
+                                                          onClick={()=>alert("a")}>
+                                            Rename
+                                        </Bootstrap.Button>
+                                    </Bootstrap.InputGroup.Append>
+                                </Bootstrap.InputGroup>
                                 <Bootstrap.Form.Control.Feedback type={"invalid"}>Field is required. Index name can't
                                     start with '@temp-' and can't contain
                                     '{'\\, /, ?, ", <, >, |, space'}'.</Bootstrap.Form.Control.Feedback>
