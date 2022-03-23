@@ -6,12 +6,22 @@ import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
 import {faMinusCircle} from "@fortawesome/free-solid-svg-icons";
 import AddRowButton from "./AddRowButton";
 import SingleInput from "./SingleInput";
+import api from "../../settings";
 
 class InteractiveTab extends React.Component {
+    constructor(props, context) {
+        super(props, context);
+        this.state = {
+            renameTo: "",
+            renamePopup: false
+        }
+    }
+
     render() {
         return (
             <Bootstrap.Form method={"post"} onSubmit={(e) => this.props.parent.checkValidity(e)}>
                 {this.props.parent.createSaveButtons()}
+                {this.createRenameModal()}
                 <Bootstrap.Card>
                     <Bootstrap.Card.Header>Main:</Bootstrap.Card.Header>
                     <Bootstrap.Card.Body>
@@ -33,8 +43,9 @@ class InteractiveTab extends React.Component {
                                     />
                                     <Bootstrap.InputGroup.Append>
                                         <Bootstrap.Button variant="outline-secondary"
-                                                          //todo: show pop-up to rename
-                                                          onClick={()=>alert("a")}>
+                                                          onClick={() => {
+                                                              this.setState({renameTo: this.props.parent.state.name, renamePopup: true});
+                                                          }}>
                                             Rename
                                         </Bootstrap.Button>
                                     </Bootstrap.InputGroup.Append>
@@ -150,6 +161,64 @@ class InteractiveTab extends React.Component {
                 </Bootstrap.Collapse>
             </Bootstrap.Form>
         )
+    }
+
+    createRenameModal() {
+        return (
+            <Bootstrap.Modal show={this.state.renamePopup} onHide={() => {
+                this.setState({renameTo: this.props.parent.state.name, renamePopup: false});
+            }} size={"lg"} centered>
+                <Bootstrap.Modal.Header closeButton>
+                    <Bootstrap.Modal.Title>Rename index: {this.props.parent.state.name}</Bootstrap.Modal.Title>
+                </Bootstrap.Modal.Header>
+                <Bootstrap.Modal.Body>
+                    <Bootstrap.Form.Group as={Bootstrap.Row}>
+                        <Bootstrap.Form.Label column md={3}>
+                            New index name:
+                        </Bootstrap.Form.Label>
+                        <Bootstrap.Col md={9}>
+                            <Bootstrap.FormControl placeholder={this.props.parent.state.name}
+                                                   value={this.state.renameTo}
+                                                   onChange={(e) => {
+                                                       e.target.classList.remove('is-invalid');
+                                                       if (e.target.value.startsWith("@temp-") || e.target.value.toLowerCase().split("").some(char => "\\/?\"<>| ".indexOf(char) !== -1))
+                                                           e.target.classList.add('is-invalid');
+                                                       this.setState({renameTo: e.target.value.toLowerCase()});
+                                                   }}
+                            />
+                            <Bootstrap.Form.Control.Feedback type={"invalid"}>Field is required. Index name can't
+                                start with '@temp-' and can't contain
+                                '{'\\, /, ?, ", <, >, |, space'}'.</Bootstrap.Form.Control.Feedback>
+                        </Bootstrap.Col>
+                    </Bootstrap.Form.Group>
+                </Bootstrap.Modal.Body>
+                <Bootstrap.Modal.Footer>
+                    <Bootstrap.Button variant="secondary" onClick={() => {
+                        this.setState({renameTo: this.props.parent.state.name, renamePopup: false});
+                    }}>
+                        Close
+                    </Bootstrap.Button>
+                    <Bootstrap.Button variant="primary" onClick={() => {
+                        this.renameIndex()
+                    }}>
+                        Rename
+                    </Bootstrap.Button>
+                </Bootstrap.Modal.Footer>
+            </Bootstrap.Modal>
+        )
+    }
+
+    renameIndex() {
+        api.put(this.props.parent.state.name + '/_rename/' + this.state.renameTo).then((response) => {
+            window.location.replace("/index/" + response.data)
+        }).catch((error) => {
+            this.props.parent.props.addAlert({
+                variant: "danger",
+                title: "Could not rename index",
+                message: error.message,
+                durationSec: 300
+            })
+        })
     }
 
 
