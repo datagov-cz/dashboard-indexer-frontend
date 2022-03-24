@@ -215,7 +215,7 @@ class InteractiveTab extends React.Component {
             this.props.parent.props.addAlert({
                 variant: "danger",
                 title: "Could not rename index",
-                message: error.message,
+                message: error,
                 durationSec: 300
             })
         })
