@@ -43,29 +43,39 @@ class IndexTable extends React.Component {
         let reader = new FileReader();
         reader.readAsText(files[0]);
         reader.onload = (e) => {
-            let data = [];
-            for (const conf of JSON.parse(e.target.result)) {
-                data.push(JSON.stringify(conf));
-            }
-            api.post('/import/configs', data).then((res) => {
-                this.loadIndexes();
-                event.target.value = null;
-                this.props.addAlert({
-                    variant: "success",
-                    title: "Import successful",
-                    message: "Successful import:\n\tnew: " + res.data[0] +
-                        ",\n\tchanged: " + res.data[1],
-                    durationSec: 9
-                })
-            }).catch((e) => {
+            try {
+                let data = [];
+                for (const conf of JSON.parse(e.target.result)) {
+                    data.push(JSON.stringify(conf));
+                }
+                api.post('/import/configs', data).then((res) => {
+                    this.loadIndexes();
+                    event.target.value = null;
+                    this.props.addAlert({
+                        variant: "success",
+                        title: "Import successful",
+                        message: "Successful import:\n\tnew: " + res.data[0] +
+                            ",\n\tchanged: " + res.data[1],
+                        durationSec: 9
+                    })
+                }).catch((e) => {
+                    event.target.value = null;
+                    this.props.addAlert({
+                        variant: "danger",
+                        title: "Import failed",
+                        message: e,
+                        durationSec: 20
+                    })
+                });
+            } catch (e){
                 event.target.value = null;
                 this.props.addAlert({
                     variant: "danger",
                     title: "Import failed",
-                    message: "Import failed. " + e.message,
+                    message: e,
                     durationSec: 20
                 })
-            });
+            }
         }
     }
 
