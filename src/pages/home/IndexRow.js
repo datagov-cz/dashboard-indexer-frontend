@@ -56,13 +56,13 @@ class IndexRow extends React.Component {
                         <td onClick={(e) => e.stopPropagation()}>
                             <div className={"d-flex justify-content-center"}>
                                 <div className={"m-auto"}>
-                                    <Link to={'/index/' + this.props.data.name}>
+                                    <Link to={'/index/' + this.props.data.id}>
                                         <FontAwesomeIcon className="text-dark pointer" icon={faPencilAlt}
                                                          title={"Edit"}/>
                                     </Link>
                                 </div>
                                 <div className={"m-auto"}
-                                     onClick={() => api.post('configs/' + this.props.data.name + (this.props.running == null ? '/start' : '/stop')).catch((error) => {
+                                     onClick={() => api.post('configs/' + this.props.data.id + (this.props.running == null ? '/start' : '/stop')).catch((error) => {
                                          this.props.addAlert({
                                              variant: "danger",
                                              title: "Start/stop request error",
@@ -76,7 +76,7 @@ class IndexRow extends React.Component {
                                                          title={"Stop indexation"}/>}
                                 </div>
                                 <div className={"m-auto"}
-                                     onClick={() => this.props.showDeletePopup(this.props.data.name, this.props.data.dashboards, this.props.data.lastSuccessAndLastTenUpdateRecords[0] != null)}
+                                     onClick={() => this.props.showDeletePopup(this.props.data.id,this.props.data.name, this.props.data.dashboards, this.props.data.lastSuccessAndLastTenUpdateRecords[0] != null)}
                                 >
                                     <FontAwesomeIcon className="text-danger pointer" icon={faTrash} title={"Delete"}/>
                                 </div>

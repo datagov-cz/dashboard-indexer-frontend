@@ -162,8 +162,9 @@ class IndexTable extends React.Component {
         })
     }
 
-    showDeletePopup(index, dashboards, successFullRun) {
+    showDeletePopup(id, index, dashboards, successFullRun) {
         this.setState({
+            deletePopupId: id,
             deletePopupIndexName: index,
             deletePopupDashboards: dashboards,
             deletePopupSuccessFullRun: successFullRun,
@@ -174,10 +175,10 @@ class IndexTable extends React.Component {
 
     renderRow(indexInfo, rowNumber) {
         return (
-            <IndexRow key={indexInfo.name} showDeletePopup={this.showDeletePopup.bind(this)}
+            <IndexRow key={indexInfo.id} showDeletePopup={this.showDeletePopup.bind(this)}
                       addAlert={this.props.addAlert}
                       rowNumber={rowNumber} data={indexInfo} kibana={this.state.dashBoardAddress}
-                      running={this.state.running[indexInfo.name]}/>
+                      running={this.state.running[indexInfo.id]}/>
         );
     }
 
@@ -213,7 +214,7 @@ class IndexTable extends React.Component {
                             No
                         </Bootstrap.Button>
                         <Bootstrap.Button variant="danger" onClick={() => {
-                            api.delete('configs/' + this.state.deletePopupIndexName, {
+                            api.delete('configs/' + this.state.deletePopupId, {
                                 params: {
                                     deleteData: this.state.deletePopupDeleteDataCheck
                                 }
