@@ -40,7 +40,7 @@ class Tabs extends React.Component {
             minRawReq: false,
             askToConvertRawToVars: false,
         };
-        if (this.props.name) api.get('configs/' + this.props.name).then((response) => {
+        if (this.props.id) api.get('configs/' + this.props.id).then((response) => {
             this.setState({config: response.data}, () =>
                 this.setState({configRaw: JSON.stringify(this.state.config, null, 7)}, () => {
                         this.setStateFromConfig();
@@ -48,6 +48,7 @@ class Tabs extends React.Component {
                 )
             );
         }).catch((error) => {
+            if(error.message==="Request failed with status code 404") window.location.replace("/notfound")
             this.props.addAlert({
                 variant: "danger",
                 title: "Get configs request error",
@@ -252,7 +253,9 @@ class Tabs extends React.Component {
 
                 }
                 if (this.state.config.config.index) {
-                    if (this.state.config.config.index.index) this.setState({name: this.state.config.config.index.index});
+                    if (this.state.config.config.index.index) this.setState({name: this.state.config.config.index.index},()=>{
+                        this.props.parent.setState({name: this.state.name});
+                    });
                 }
             }
         });

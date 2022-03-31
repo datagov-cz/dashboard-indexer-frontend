@@ -32,7 +32,7 @@ class App extends React.Component {
                     <Route exact path={"/"}>
                         <Home addAlert={this.addAlert}/>
                     </Route>
-                    <Route exact path={["/index/:name", "/index"]} children={<Edit addAlert={this.addAlert}/>}/>
+                    <Route exact path={["/index/:id", "/index"]} children={<Edit addAlert={this.addAlert}/>}/>
                     <Route children={<NotFound/>}/>
                 </Switch>
                 <div className={"toasts p-4 mh-100  overflow-auto"}>
@@ -42,7 +42,6 @@ class App extends React.Component {
                                                                     durationSec={alert.durationSec}/>
                     )}
                 </div>
-
             </Router>
         )
     }

@@ -33,7 +33,7 @@ class InteractiveTab extends React.Component {
                                 <Bootstrap.InputGroup>
                                     <Bootstrap.FormControl placeholder="index-name"
                                                            value={this.props.parent.state.name}
-                                                           readOnly={this.props.parent.props.match.params.name}
+                                                           readOnly={this.props.parent.props.match.params.id}
                                                            onChange={(e) => {
                                                                e.target.classList.remove('is-invalid');
                                                                if (e.target.value.startsWith("@temp-") || e.target.value.toLowerCase().split("").some(char => "\\/?\"<>| ".indexOf(char) !== -1))
@@ -44,7 +44,10 @@ class InteractiveTab extends React.Component {
                                     <Bootstrap.InputGroup.Append>
                                         <Bootstrap.Button variant="outline-secondary"
                                                           onClick={() => {
-                                                              this.setState({renameTo: this.props.parent.state.name, renamePopup: true});
+                                                              this.setState({
+                                                                  renameTo: this.props.parent.state.name,
+                                                                  renamePopup: true
+                                                              });
                                                           }}>
                                             Rename
                                         </Bootstrap.Button>
@@ -209,8 +212,9 @@ class InteractiveTab extends React.Component {
     }
 
     renameIndex() {
-        api.put(this.props.parent.state.name + '/_rename/' + this.state.renameTo).then((response) => {
-            window.location.replace("/index/" + response.data)
+        api.patch("/configs/"+this.props.parent.props.id + '/indexName',  this.state.renameTo, {headers: {'Content-Type': 'text/plain'}}).then((response) => {
+            this.props.parent.setState({name: response.data}, ()=>{this.setState({renamePopup: false})})
+            this.props.parent.props.parent.setState({name: response.data})
         }).catch((error) => {
             this.props.parent.props.addAlert({
                 variant: "danger",
